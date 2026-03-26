@@ -1,60 +1,70 @@
 /**
- * Specimen Generator
- * ==================
- * Generates a 3D voxel grid representing a fire agate specimen.
+ * Specimen Generator — Realistic Fire Agate
+ * ==========================================
+ * Generates a 3D voxel grid modeled after real fire agate specimens.
  *
- * Structure (from outside in):
- *   1. Matrix (host rock) — outermost layer
- *   2. Chalcedony — translucent protective dome
- *   3. Fire layer — ultra-thin iridescent band
- *   4. More chalcedony / matrix in the core
+ * Based on observation of actual stones, the key structural features are:
  *
- * The layers follow botryoidal (grape-like) shapes created by
- * summing several offset sine-based "bumps" to produce an organic,
- * dome-covered surface.
+ *   1. IRREGULAR OUTER SHAPE — not a sphere; lumpy, organic form
+ *   2. MULTIPLE BOTRYOIDAL DOMES — grape-like chalcedony clusters of varying
+ *      sizes (one primary dome, several smaller "bubble" domes)
+ *   3. MATRIX FILLS VALLEYS — tan/cream matrix sits between and around domes,
+ *      not just as a uniform outer shell
+ *   4. MULTIPLE FIRE BANDS — thin iron oxide layers at different depths within
+ *      each dome, following the dome contour
+ *   5. FIRE COLOUR VARIES — different domes/depths produce different hues
+ *      (ruby red, burnt orange, amber, occasional green)
+ *   6. CHALCEDONY IS AMBER/HONEY — not pale blue; ranges from smoky brown
+ *      to warm amber depending on thickness
+ *
+ * Generation algorithm:
+ *   1. Place 4–8 dome centres within the specimen volume
+ *   2. Each dome has its own radius, position, and fire colour
+ *   3. For each voxel, find the nearest dome and compute distance to its surface
+ *   4. Assign material based on distance from the dome surface:
+ *      - Far outside all domes → air (if outside specimen) or matrix (if inside)
+ *      - Just outside a dome → matrix (ridge between domes)
+ *      - Dome surface → chalcedony
+ *      - At specific depths within dome → fire bands
+ *      - Deep inside dome → more chalcedony / inner matrix core
  */
 
 import type { Voxel, MaterialType } from '../types';
-import {
-  GRID_SIZE,
-  SPECIMEN_RADIUS,
-  CHALCEDONY_THICKNESS,
-  FIRE_THICKNESS,
-} from '../constants';
+import { GRID_SIZE } from '../constants';
 
 // ---------------------------------------------------------------------------
-// Simple pseudo-random noise (deterministic, no dependencies)
+// Deterministic pseudo-random helpers (no dependencies)
 // ---------------------------------------------------------------------------
 
-/**
- * A basic 3D hash function that returns a value in [0, 1].
- * Used to add organic variation to layer boundaries.
- * This is NOT cryptographic — just enough for visual noise.
- */
 function hash3d(x: number, y: number, z: number): number {
   let h = x * 374761393 + y * 668265263 + z * 1274126177;
   h = ((h ^ (h >> 13)) * 1274126177) | 0;
   return (h & 0x7fffffff) / 0x7fffffff;
 }
 
-/**
- * Smooth noise via trilinear interpolation of hash values.
- * `scale` controls the frequency of variation.
- */
+/** Seeded random number generator for reproducible specimens. */
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return s / 0x7fffffff;
+  };
+}
+
+/** Smooth noise via trilinear interpolation. */
 function smoothNoise(x: number, y: number, z: number, scale: number): number {
   const sx = x / scale;
   const sy = y / scale;
   const sz = z / scale;
-
   const x0 = Math.floor(sx);
   const y0 = Math.floor(sy);
   const z0 = Math.floor(sz);
-
   const fx = sx - x0;
   const fy = sy - y0;
   const fz = sz - z0;
 
-  // Trilinear interpolation of 8 corner hash values
+  const lerp = (a: number, b: number, t: number) => a + t * (b - a);
+
   const c000 = hash3d(x0, y0, z0);
   const c100 = hash3d(x0 + 1, y0, z0);
   const c010 = hash3d(x0, y0 + 1, z0);
@@ -64,143 +74,233 @@ function smoothNoise(x: number, y: number, z: number, scale: number): number {
   const c011 = hash3d(x0, y0 + 1, z0 + 1);
   const c111 = hash3d(x0 + 1, y0 + 1, z0 + 1);
 
-  const lerp = (a: number, b: number, t: number) => a + t * (b - a);
-
   const c00 = lerp(c000, c100, fx);
   const c10 = lerp(c010, c110, fx);
   const c01 = lerp(c001, c101, fx);
   const c11 = lerp(c011, c111, fx);
-
   const c0 = lerp(c00, c10, fy);
   const c1 = lerp(c01, c11, fy);
-
   return lerp(c0, c1, fz);
 }
 
 // ---------------------------------------------------------------------------
-// Botryoidal surface generation
+// Dome definition — each dome is a botryoidal chalcedony hemisphere
 // ---------------------------------------------------------------------------
 
-/**
- * Creates an array of "bump centres" that produce the characteristic
- * grape-like surface of real fire agate chalcedony domes.
- *
- * Each bump is a point slightly inside the specimen with a radius
- * of influence. The effective surface at any point is the maximum
- * of all bump contributions.
- */
-interface Bump {
+interface Dome {
+  /** Centre position in grid coordinates */
   cx: number;
   cy: number;
   cz: number;
+  /** Outer radius of the dome (chalcedony surface) */
   radius: number;
+  /** How many fire bands this dome contains (1–3) */
+  fireBandCount: number;
+  /** Base fire hue for this dome (0–1 in HSL space) */
+  baseFireHue: number;
+  /** Unique ID for this dome */
+  id: number;
 }
 
-function generateBumps(count: number, seed: number): Bump[] {
-  const bumps: Bump[] = [];
-  const half = GRID_SIZE / 2;
+// ---------------------------------------------------------------------------
+// Fire band depths — where fire layers sit relative to dome surface
+// ---------------------------------------------------------------------------
 
-  for (let i = 0; i < count; i++) {
-    // Deterministic pseudo-random placement on a sphere shell
-    const phi = hash3d(i + seed, 0, 0) * Math.PI * 2;
-    const theta = hash3d(0, i + seed, 0) * Math.PI;
-    const r = SPECIMEN_RADIUS * (0.5 + hash3d(0, 0, i + seed) * 0.35);
-
-    bumps.push({
-      cx: half + r * Math.sin(theta) * Math.cos(phi),
-      cy: half + r * Math.sin(theta) * Math.sin(phi),
-      cz: half + r * Math.cos(theta),
-      radius: 3 + hash3d(i, i, seed) * 4, // 3–7 grid units
-    });
+/**
+ * Fire bands sit at specific depths below the dome's outer surface.
+ * Each band is ~1 voxel thick. In real stones, these are nano-thin
+ * iron oxide layers deposited during formation.
+ *
+ * Band depths per dome (distance inward from dome surface in grid units):
+ *   Band 0: 2–3 units in (shallow — first to be exposed)
+ *   Band 1: 4–5 units in (mid-depth)
+ *   Band 2: 6–7 units in (deep — rarely reached without destroying upper bands)
+ */
+function getFireBandDepths(dome: Dome, rng: () => number): number[] {
+  const depths: number[] = [];
+  for (let i = 0; i < dome.fireBandCount; i++) {
+    depths.push(2 + i * 2.2 + rng() * 0.8);
   }
-  return bumps;
+  return depths;
 }
 
 // ---------------------------------------------------------------------------
 // Main generation function
 // ---------------------------------------------------------------------------
 
-/**
- * Generate the full voxel grid for one fire agate specimen.
- *
- * Algorithm:
- *   1. Compute distance from each voxel to the grid centre.
- *   2. Add smooth noise to create organic surface variation.
- *   3. Add botryoidal bumps to the chalcedony boundary.
- *   4. Assign material based on distance thresholds:
- *      - Beyond outer radius → air
- *      - Outer shell → matrix
- *      - Next band → chalcedony
- *      - Thin band → fire layer
- *      - Core → chalcedony (fire sits between chalcedony layers)
- *
- * Returns a flat array indexed as grid[x][y][z] = grid[x * G*G + y * G + z].
- */
 export function generateSpecimen(): Voxel[] {
   const grid: Voxel[] = new Array(GRID_SIZE * GRID_SIZE * GRID_SIZE);
   const half = GRID_SIZE / 2;
+  const rng = seededRandom(42);
 
-  // Pre-compute botryoidal bumps for the chalcedony layer
-  const bumps = generateBumps(18, 42);
+  // ---- Step 1: Generate dome cluster ----
+  // Place domes in a cluster. One large primary dome + several smaller ones.
+  const domes: Dome[] = [];
 
+  // Primary dome — large, central, this is the showcase
+  domes.push({
+    cx: half + (rng() - 0.5) * 3,
+    cy: half + (rng() - 0.5) * 2,
+    cz: half + (rng() - 0.5) * 3,
+    radius: 8 + rng() * 2,   // 8–10 grid units
+    fireBandCount: 3,
+    baseFireHue: 0.02 + rng() * 0.04,  // deep red to orange-red
+    id: 0,
+  });
+
+  // Secondary domes — medium, clustered around the primary
+  const numSecondary = 3 + Math.floor(rng() * 3); // 3–5
+  for (let i = 0; i < numSecondary; i++) {
+    const angle = rng() * Math.PI * 2;
+    const tilt = rng() * Math.PI * 0.6 + 0.2;
+    const dist = 6 + rng() * 5;
+    domes.push({
+      cx: half + dist * Math.sin(tilt) * Math.cos(angle),
+      cy: half + dist * Math.cos(tilt) * 0.7,
+      cz: half + dist * Math.sin(tilt) * Math.sin(angle),
+      radius: 4 + rng() * 3,  // 4–7 grid units
+      fireBandCount: 1 + Math.floor(rng() * 2), // 1–2
+      baseFireHue: rng() * 0.12,  // red through orange
+      id: i + 1,
+    });
+  }
+
+  // Tiny bubble domes — small, scattered
+  const numBubbles = 3 + Math.floor(rng() * 4); // 3–6
+  for (let i = 0; i < numBubbles; i++) {
+    const angle = rng() * Math.PI * 2;
+    const tilt = rng() * Math.PI;
+    const dist = 4 + rng() * 8;
+    domes.push({
+      cx: half + dist * Math.sin(tilt) * Math.cos(angle),
+      cy: half + dist * Math.cos(tilt),
+      cz: half + dist * Math.sin(tilt) * Math.sin(angle),
+      radius: 2 + rng() * 2.5, // 2–4.5 grid units
+      fireBandCount: 1,
+      baseFireHue: rng() < 0.15 ? 0.28 + rng() * 0.08 : rng() * 0.1, // rare green, usually red/orange
+      id: numSecondary + i + 1,
+    });
+  }
+
+  // Pre-compute fire band depths for each dome
+  const domeBandDepths = domes.map(d => getFireBandDepths(d, rng));
+
+  // ---- Step 2: Determine the specimen outer boundary ----
+  // The outer boundary is an irregular shape that encloses all domes
+  // plus a shell of matrix. Uses noise for organic variation.
+  const OUTER_RADIUS = 14;     // max extent from centre
+  const MATRIX_SHELL = 2.5;    // matrix thickness over dome surfaces
+
+  // ---- Step 3: Fill the grid ----
   for (let x = 0; x < GRID_SIZE; x++) {
     for (let y = 0; y < GRID_SIZE; y++) {
       for (let z = 0; z < GRID_SIZE; z++) {
         const idx = x * GRID_SIZE * GRID_SIZE + y * GRID_SIZE + z;
 
-        // Distance from centre
+        // Distance from grid centre (for outer boundary)
         const dx = x - half;
         const dy = y - half;
         const dz = z - half;
-        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const distFromCentre = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-        // Add noise for organic variation (±1.5 grid units)
-        const noise = smoothNoise(x, y, z, 6) * 3 - 1.5;
+        // Organic noise for outer boundary
+        const outerNoise = smoothNoise(x, y, z, 5) * 3 - 1.5;
+        const outerBound = OUTER_RADIUS + outerNoise;
 
-        // Botryoidal bump contribution: expand inward boundary near bumps
-        let bumpContribution = 0;
-        for (const b of bumps) {
-          const bdx = x - b.cx;
-          const bdy = y - b.cy;
-          const bdz = z - b.cz;
-          const bDist = Math.sqrt(bdx * bdx + bdy * bdy + bdz * bdz);
-          if (bDist < b.radius) {
-            // Smooth falloff
-            const t = 1 - bDist / b.radius;
-            bumpContribution = Math.max(bumpContribution, t * 2.5);
+        // Outside the specimen entirely → air
+        if (distFromCentre > outerBound) {
+          grid[idx] = { material: 'air', roughness: 0, integrity: 0, depth: 0, domeId: -1, fireHue: 0 };
+          continue;
+        }
+
+        // ---- Find relationship to nearest dome ----
+        let nearestDomeId = -1;
+        let nearestDomeDist = Infinity;  // distance from dome surface (negative = inside)
+        let nearestDome: Dome | null = null;
+
+        for (let di = 0; di < domes.length; di++) {
+          const d = domes[di];
+          const ddx = x - d.cx;
+          const ddy = y - d.cy;
+          const ddz = z - d.cz;
+          const distToCentre = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
+
+          // Distance from dome surface (positive = outside dome, negative = inside)
+          const distFromSurface = distToCentre - d.radius;
+
+          if (distFromSurface < nearestDomeDist) {
+            nearestDomeDist = distFromSurface;
+            nearestDomeId = di;
+            nearestDome = d;
           }
         }
 
-        // Effective distance (modified by noise and bumps)
-        const effectiveDist = dist + noise - bumpContribution;
-
-        // Determine material based on distance thresholds
+        // ---- Assign material based on position relative to domes ----
         let material: MaterialType;
+        let depth = 0;
+        let domeId = -1;
+        let fireHue = 0;
 
-        const outerBoundary = SPECIMEN_RADIUS;
-        const chalcedonyOuter = SPECIMEN_RADIUS - 2; // matrix shell ~2 units thick
-        const fireOuter = chalcedonyOuter - CHALCEDONY_THICKNESS;
-        const fireInner = fireOuter - FIRE_THICKNESS;
+        // Add per-voxel noise for organic layer boundaries
+        const layerNoise = smoothNoise(x * 2, y * 2, z * 2, 4) * 1.0 - 0.5;
 
-        if (effectiveDist > outerBoundary) {
-          material = 'air';
-        } else if (effectiveDist > chalcedonyOuter) {
-          material = 'matrix';
-        } else if (effectiveDist > fireOuter) {
-          material = 'chalcedony';
-        } else if (effectiveDist > fireInner) {
-          material = 'fire';
-        } else if (effectiveDist > 3) {
-          // Inner core is more chalcedony with some matrix
-          material = effectiveDist > fireInner - 2 ? 'chalcedony' : 'matrix';
+        if (nearestDome && nearestDomeDist < MATRIX_SHELL) {
+          // This voxel is within or near a dome
+          domeId = nearestDomeId;
+          const surfaceDist = -nearestDomeDist + layerNoise * 0.5; // depth into dome
+          depth = Math.max(0, surfaceDist);
+
+          if (nearestDomeDist > 0.5) {
+            // Outside the dome surface but within matrix shell → matrix between domes
+            material = 'matrix';
+          } else if (nearestDomeDist > -0.5) {
+            // Right at the dome surface → outer chalcedony
+            material = 'chalcedony';
+          } else {
+            // Inside the dome — check for fire bands
+            const depthIntoDome = -nearestDomeDist;
+            material = 'chalcedony'; // default: chalcedony inside dome
+
+            // Check if we're at a fire band depth
+            const bands = domeBandDepths[nearestDomeId];
+            for (let bi = 0; bi < bands.length; bi++) {
+              const bandDepth = bands[bi];
+              const distFromBand = Math.abs(depthIntoDome - bandDepth + layerNoise * 0.3);
+
+              if (distFromBand < 0.6) {
+                // On a fire band!
+                material = 'fire';
+                // Fire hue shifts slightly with depth and position
+                fireHue = nearestDome.baseFireHue + bi * 0.03 + layerNoise * 0.02;
+                // Clamp to valid range and wrap
+                fireHue = ((fireHue % 1) + 1) % 1;
+                break;
+              }
+            }
+
+            // Deep inside dome → inner core matrix
+            if (depthIntoDome > nearestDome.radius * 0.85) {
+              material = 'matrix';
+            }
+          }
         } else {
+          // Far from any dome → matrix (fill between domes)
           material = 'matrix';
+          domeId = -1;
         }
+
+        // Roughness: matrix is rough, chalcedony starts semi-rough (needs polishing)
+        const roughness = material === 'matrix' ? 0.85 + hash3d(x, y, z) * 0.15
+          : material === 'fire' ? 0.3
+          : 0.5; // chalcedony
 
         grid[idx] = {
           material,
-          roughness: material === 'air' ? 0 : 0.5,
-          integrity: material === 'air' ? 0 : 1.0,
+          roughness,
+          integrity: 1.0,
+          depth,
+          domeId,
+          fireHue,
         };
       }
     }
@@ -209,16 +309,14 @@ export function generateSpecimen(): Voxel[] {
   return grid;
 }
 
-/**
- * Utility: convert (x, y, z) to flat array index.
- */
+// ---------------------------------------------------------------------------
+// Utilities (unchanged API, used throughout the codebase)
+// ---------------------------------------------------------------------------
+
 export function voxelIndex(x: number, y: number, z: number): number {
   return x * GRID_SIZE * GRID_SIZE + y * GRID_SIZE + z;
 }
 
-/**
- * Utility: check if coordinates are within the grid bounds.
- */
 export function inBounds(x: number, y: number, z: number): boolean {
   return x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE && z >= 0 && z < GRID_SIZE;
 }

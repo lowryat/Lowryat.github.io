@@ -18,11 +18,20 @@ export type MaterialType = 'matrix' | 'chalcedony' | 'fire' | 'air';
  * - `material`: what substance occupies this cube
  * - `roughness`: 0 = polished, 1 = rough (affects light scatter & fire visibility)
  * - `integrity`: 0 = destroyed, 1 = fully intact (decreases as tools grind nearby)
+ * - `depth`: distance from the nearest dome surface (0 = surface, higher = deeper)
+ *    Used for chalcedony translucency — thinner chalcedony shows fire through it
+ * - `domeId`: which botryoidal dome this voxel belongs to (-1 = none/matrix fill)
+ *    Used to track per-dome support and undercut analysis
+ * - `fireHue`: base hue for fire voxels (0–1), varies by dome and depth
+ *    Different domes and layers can show different fire colours
  */
 export interface Voxel {
   material: MaterialType;
   roughness: number;
   integrity: number;
+  depth: number;
+  domeId: number;
+  fireHue: number;
 }
 
 // ---------------------------------------------------------------------------

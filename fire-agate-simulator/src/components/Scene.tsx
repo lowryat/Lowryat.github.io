@@ -38,14 +38,17 @@ export function Scene({
         camera={{ position: [0, 0, 8], fov: 50 }}
         style={{ background: '#1a1a2e' }}
       >
-        {/* Ambient light for base illumination */}
-        <ambientLight intensity={0.3} />
+        {/* Warm ambient for natural stone appearance */}
+        <ambientLight intensity={0.4} color="#ffe8cc" />
 
-        {/* Main directional light (movable by user) */}
-        <pointLight position={[lx, ly, lz]} intensity={1.5} color="#fff5e0" />
+        {/* Main point light (movable by user) — warm white like a desk lamp */}
+        <pointLight position={[lx, ly, lz]} intensity={2.0} color="#fff0d0" />
 
-        {/* Fill light from below for visibility */}
-        <pointLight position={[0, -5, 0]} intensity={0.2} color="#4a90d9" />
+        {/* Subtle warm fill from below — simulates reflected light off hand/surface */}
+        <pointLight position={[0, -5, 2]} intensity={0.25} color="#ffe0b0" />
+
+        {/* Cool rim light for edge definition */}
+        <pointLight position={[-5, 3, -3]} intensity={0.3} color="#c0d0e0" />
 
         {/* The specimen mesh */}
         <Specimen

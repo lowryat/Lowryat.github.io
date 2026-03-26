@@ -37,13 +37,40 @@ export const MATERIAL_HARDNESS: Record<string, number> = {
 
 /**
  * Visual colours for each material type.
- * These are used both for the 3D voxel rendering and the UI legend.
+ * Based on real fire agate specimens:
+ *   - Matrix: cream/tan rough host rock (not dark — real matrix is often light)
+ *   - Chalcedony: amber/honey translucent (NOT pale blue — real fire agate
+ *     chalcedony is warm-toned due to iron content)
+ *   - Fire: deep ruby-red base (actual colour is angle-dependent and varies per dome)
  */
 export const MATERIAL_COLORS: Record<string, string> = {
-  matrix: '#6b5b4f',      // dark brown (basalt-like host rock)
-  chalcedony: '#b8d4e3',  // pale translucent blue-white
-  fire: '#ff6600',         // fiery orange (base — actual colour is angle-dependent)
+  matrix: '#8b7355',      // warm tan/cream (real matrix between domes)
+  chalcedony: '#a0723c',  // amber/honey translucent
+  fire: '#cc2200',         // deep ruby-red (base — actual colour per-voxel)
   air: '#000000',          // not rendered
+};
+
+/**
+ * Extended colour palette for realistic rendering.
+ * Chalcedony colour depends on depth/thickness — thinner = more transparent amber,
+ * thicker = darker smoky brown.
+ */
+export const CHALCEDONY_COLORS = {
+  thin: '#c4944a',       // warm amber (thin chalcedony, fire visible through)
+  medium: '#8b6b3e',     // honey brown (medium thickness)
+  thick: '#5a4028',      // smoky dark brown (thick, fire hidden)
+  polished: '#d4a060',   // bright amber when polished (low roughness)
+};
+
+/**
+ * Matrix colour variations — real matrix isn't uniform.
+ * Includes rough tan, darker spots, and reddish iron-stained areas.
+ */
+export const MATRIX_COLORS = {
+  base: '#8b7355',       // warm tan
+  dark: '#6b5540',       // darker brown spots
+  ironStain: '#8b5a3a',  // reddish iron staining
+  light: '#a89070',      // lighter cream areas
 };
 
 // ---------------------------------------------------------------------------
@@ -79,13 +106,13 @@ export const TOOLS: Record<ToolName, ToolProperties> = {
 // ---------------------------------------------------------------------------
 
 /** Outer radius of the specimen (in grid units from centre). */
-export const SPECIMEN_RADIUS = 13;
+export const SPECIMEN_RADIUS = 14;
 
-/** Thickness of the chalcedony band (grid units). */
-export const CHALCEDONY_THICKNESS = 3;
+/** Max depth (in voxels) for chalcedony "thin" rendering threshold. */
+export const CHALCEDONY_THIN_DEPTH = 2;
 
-/** Thickness of the fire layer (grid units). Very thin! */
-export const FIRE_THICKNESS = 1;
+/** Max depth for chalcedony "medium" rendering threshold. */
+export const CHALCEDONY_MEDIUM_DEPTH = 4;
 
 // ---------------------------------------------------------------------------
 // Simulation thresholds

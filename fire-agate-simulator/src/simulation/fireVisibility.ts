@@ -1,76 +1,111 @@
 /**
- * Fire Visibility Computation
- * ===========================
- * Determines how much "fire" is visible from the current viewing angle,
- * given the light source position and the state of the voxel grid.
+ * Fire Visibility Computation — Realistic Model
+ * ===============================================
+ * Determines how much "fire" is visible from the current viewing angle.
  *
- * Real fire agate shows colour through thin-film interference:
- *   - Light enters through chalcedony
- *   - Reflects off nano-thin iron oxide layers
- *   - Colour depends on layer thickness AND the angle of incidence
+ * Key improvement over the basic model: fire can be visible THROUGH
+ * thin chalcedony, not just when directly exposed. This matches real
+ * fire agate where the chalcedony dome acts as a translucent lens
+ * over the fire layers beneath.
  *
- * Our simplified model:
- *   1. For each exposed fire voxel, cast a ray toward the light source
- *      and a ray toward the camera.
- *   2. If either ray is blocked by matrix, fire is not visible.
- *   3. If both rays are clear, compute visibility based on:
- *      - The angle between light direction and surface normal
- *      - The angle between view direction and surface normal
- *      - Surface roughness (rough surfaces scatter light, reducing fire)
- *   4. Sum contributions to get an overall fire visibility score.
+ * Visibility depends on:
+ *   1. Is the fire voxel exposed (adjacent to air) OR covered by
+ *      thin chalcedony (≤3 voxels thick)?
+ *   2. Is the light path clear of matrix?
+ *   3. Is the view path clear of matrix?
+ *   4. What's the angle between light/view directions and the surface normal?
+ *   5. Surface roughness (polished chalcedony transmits more light)
+ *   6. Chalcedony thickness above fire (thinner = more visible)
  */
 
 import type { Voxel } from '../types';
 import { GRID_SIZE } from '../constants';
 import { voxelIndex, inBounds } from './specimenGenerator';
 
-/**
- * Result of the fire visibility analysis.
- */
 export interface FireVisibilityResult {
-  /** Overall score 0–100. */
   score: number;
-  /** Fraction of fire voxels that are surface-exposed. */
   exposureFraction: number;
-  /** Fraction of exposed fire voxels with clear light paths. */
   lightClearanceFraction: number;
-  /** Per-voxel fire intensity (used for rendering glow). Sparse map: index → intensity. */
   fireIntensityMap: Map<number, number>;
 }
 
-/**
- * Check if a voxel is "exposed" — adjacent to at least one air voxel.
- * Only exposed fire voxels can be seen.
- */
+/** Check if a voxel is directly exposed (adjacent to air). */
 function isExposed(grid: Voxel[], x: number, y: number, z: number): boolean {
   const neighbors = [
     [1, 0, 0], [-1, 0, 0],
     [0, 1, 0], [0, -1, 0],
     [0, 0, 1], [0, 0, -1],
   ];
-
   for (const [dx, dy, dz] of neighbors) {
-    const nx = x + dx;
-    const ny = y + dy;
-    const nz = z + dz;
-    if (!inBounds(nx, ny, nz)) return true; // edge of grid = exposed
+    const nx = x + dx, ny = y + dy, nz = z + dz;
+    if (!inBounds(nx, ny, nz)) return true;
     if (grid[voxelIndex(nx, ny, nz)].material === 'air') return true;
   }
   return false;
 }
 
 /**
- * Estimate the surface normal at a voxel by looking at which neighbors are air.
- * The normal points away from solid material toward air.
+ * Check if fire is visible through thin chalcedony.
+ * Traces outward from the fire voxel looking for the nearest air.
+ * If only chalcedony (no matrix) lies between fire and air,
+ * and the chalcedony is thin enough, fire is "translucently visible".
+ *
+ * Returns the chalcedony thickness (in voxels) to the nearest air,
+ * or -1 if matrix blocks the path or chalcedony is too thick.
  */
+function chalcedonyThicknessToAir(
+  grid: Voxel[],
+  x: number, y: number, z: number,
+  maxDepth: number = 4
+): number {
+  const neighbors = [
+    [1, 0, 0], [-1, 0, 0],
+    [0, 1, 0], [0, -1, 0],
+    [0, 0, 1], [0, 0, -1],
+  ];
+
+  // BFS outward up to maxDepth
+  let minThickness = maxDepth + 1;
+
+  for (const [dx, dy, dz] of neighbors) {
+    let thickness = 0;
+    let blocked = false;
+
+    for (let step = 1; step <= maxDepth; step++) {
+      const nx = x + dx * step;
+      const ny = y + dy * step;
+      const nz = z + dz * step;
+
+      if (!inBounds(nx, ny, nz)) {
+        // Reached grid edge through chalcedony = visible
+        break;
+      }
+
+      const mat = grid[voxelIndex(nx, ny, nz)].material;
+      if (mat === 'air') {
+        break; // Found air
+      } else if (mat === 'matrix') {
+        blocked = true;
+        break; // Matrix blocks
+      } else {
+        thickness++; // chalcedony or fire
+      }
+    }
+
+    if (!blocked && thickness < minThickness) {
+      minThickness = thickness;
+    }
+  }
+
+  return minThickness <= maxDepth ? minThickness : -1;
+}
+
+/** Estimate surface normal from air neighbors. */
 function estimateNormal(
   grid: Voxel[],
-  x: number,
-  y: number,
-  z: number
+  x: number, y: number, z: number
 ): [number, number, number] {
   let nx = 0, ny = 0, nz = 0;
-
   const offsets = [
     [1, 0, 0], [-1, 0, 0],
     [0, 1, 0], [0, -1, 0],
@@ -78,78 +113,43 @@ function estimateNormal(
   ];
 
   for (const [dx, dy, dz] of offsets) {
-    const ax = x + dx;
-    const ay = y + dy;
-    const az = z + dz;
+    const ax = x + dx, ay = y + dy, az = z + dz;
     if (!inBounds(ax, ay, az) || grid[voxelIndex(ax, ay, az)].material === 'air') {
-      // This direction faces air — contributes to normal
       nx += dx;
       ny += dy;
       nz += dz;
     }
   }
 
-  // Normalize
   const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
-  if (len === 0) return [0, 1, 0]; // fallback: point up
+  if (len === 0) return [0, 1, 0];
   return [nx / len, ny / len, nz / len];
 }
 
-/**
- * Cast a ray through the voxel grid using DDA (Digital Differential Analyzer).
- * Returns true if the ray reaches the grid boundary without hitting non-air,
- * non-fire, non-chalcedony material (i.e., matrix blocks the path).
- *
- * We allow the ray to pass through chalcedony (it's translucent) and air.
- * Only matrix blocks the light path.
- */
+/** Ray march: returns true if path is clear of matrix. */
 function isPathClear(
   grid: Voxel[],
   startX: number, startY: number, startZ: number,
   dirX: number, dirY: number, dirZ: number,
   maxSteps: number = 50
 ): boolean {
-  let x = startX;
-  let y = startY;
-  let z = startZ;
-
-  // Step size: move one voxel at a time along the ray
+  let x = startX, y = startY, z = startZ;
   const len = Math.sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ);
   if (len === 0) return false;
-  const stepX = dirX / len;
-  const stepY = dirY / len;
-  const stepZ = dirZ / len;
+  const sx = dirX / len, sy = dirY / len, sz = dirZ / len;
 
   for (let i = 0; i < maxSteps; i++) {
-    x += stepX;
-    y += stepY;
-    z += stepZ;
-
-    const ix = Math.round(x);
-    const iy = Math.round(y);
-    const iz = Math.round(z);
-
-    // Exited grid → path is clear
+    x += sx; y += sy; z += sz;
+    const ix = Math.round(x), iy = Math.round(y), iz = Math.round(z);
     if (!inBounds(ix, iy, iz)) return true;
-
-    const voxel = grid[voxelIndex(ix, iy, iz)];
-
-    // Matrix blocks the path
-    if (voxel.material === 'matrix') return false;
-
-    // Air and chalcedony are transparent (simplified)
-    // Fire voxels along the path don't block (they're thin films)
+    if (grid[voxelIndex(ix, iy, iz)].material === 'matrix') return false;
   }
-
-  return true; // reached max steps without hitting matrix
+  return true;
 }
 
 /**
  * Compute fire visibility for the entire specimen.
- *
- * @param grid       - The voxel grid
- * @param lightDir   - Normalized direction FROM the specimen TOWARD the light
- * @param viewDir    - Normalized direction FROM the specimen TOWARD the camera
+ * Now includes fire visible through thin chalcedony (translucent domes).
  */
 export function computeFireVisibility(
   grid: Voxel[],
@@ -157,7 +157,7 @@ export function computeFireVisibility(
   viewDir: [number, number, number]
 ): FireVisibilityResult {
   let totalFireVoxels = 0;
-  let exposedFireVoxels = 0;
+  let visibleFireVoxels = 0;  // exposed OR visible through thin chalcedony
   let clearPathVoxels = 0;
   let totalVisibility = 0;
   const fireIntensityMap = new Map<number, number>();
@@ -167,47 +167,52 @@ export function computeFireVisibility(
       for (let z = 0; z < GRID_SIZE; z++) {
         const idx = voxelIndex(x, y, z);
         const voxel = grid[idx];
-
         if (voxel.material !== 'fire') continue;
         totalFireVoxels++;
 
-        // Is this fire voxel exposed (adjacent to air)?
-        if (!isExposed(grid, x, y, z)) continue;
-        exposedFireVoxels++;
+        // Check direct exposure OR translucent visibility through chalcedony
+        const directlyExposed = isExposed(grid, x, y, z);
+        let chalcThickness = -1;
 
-        // Check light path: can light reach this voxel?
+        if (!directlyExposed) {
+          chalcThickness = chalcedonyThicknessToAir(grid, x, y, z);
+          if (chalcThickness < 0) continue; // not visible at all
+        }
+
+        visibleFireVoxels++;
+
+        // Check light and view paths
         const lightClear = isPathClear(grid, x, y, z, lightDir[0], lightDir[1], lightDir[2]);
-
-        // Check view path: can the viewer see this voxel?
         const viewClear = isPathClear(grid, x, y, z, viewDir[0], viewDir[1], viewDir[2]);
 
         if (lightClear && viewClear) {
           clearPathVoxels++;
 
-          // Compute angle-dependent visibility
           const normal = estimateNormal(grid, x, y, z);
 
-          // Dot product of light direction with surface normal
           const lightDot = Math.abs(
             normal[0] * lightDir[0] + normal[1] * lightDir[1] + normal[2] * lightDir[2]
           );
-
-          // Dot product of view direction with surface normal
           const viewDot = Math.abs(
             normal[0] * viewDir[0] + normal[1] * viewDir[1] + normal[2] * viewDir[2]
           );
 
-          // Fire visibility is best when both light and view are at moderate angles
-          // (thin-film interference is angle-dependent)
-          // Peak visibility around 30-60 degrees from normal
+          // Angle factors (thin-film interference peaks at moderate angles)
           const lightAngleFactor = Math.sin(Math.acos(Math.min(1, lightDot)) * 1.2);
           const viewAngleFactor = Math.sin(Math.acos(Math.min(1, viewDot)) * 1.2);
 
-          // Roughness penalty: rough surfaces scatter light and reduce fire visibility
+          // Roughness penalty
           const roughnessPenalty = 1 - voxel.roughness * 0.6;
 
-          // Combined visibility for this voxel
-          const visibility = lightAngleFactor * viewAngleFactor * roughnessPenalty;
+          // Chalcedony attenuation: fire seen through chalcedony is dimmer
+          // Directly exposed fire = full brightness
+          // Through 1 voxel chalcedony = 70% brightness
+          // Through 3 voxels = 30% brightness
+          const chalcAttenuation = directlyExposed
+            ? 1.0
+            : Math.max(0.15, 1.0 - (chalcThickness * 0.25));
+
+          const visibility = lightAngleFactor * viewAngleFactor * roughnessPenalty * chalcAttenuation;
           totalVisibility += visibility;
           fireIntensityMap.set(idx, visibility);
         }
@@ -215,14 +220,13 @@ export function computeFireVisibility(
     }
   }
 
-  // Normalize score to 0–100
   const maxPossible = Math.max(totalFireVoxels, 1);
   const score = Math.min(100, (totalVisibility / maxPossible) * 200);
 
   return {
     score,
-    exposureFraction: totalFireVoxels > 0 ? exposedFireVoxels / totalFireVoxels : 0,
-    lightClearanceFraction: exposedFireVoxels > 0 ? clearPathVoxels / exposedFireVoxels : 0,
+    exposureFraction: totalFireVoxels > 0 ? visibleFireVoxels / totalFireVoxels : 0,
+    lightClearanceFraction: visibleFireVoxels > 0 ? clearPathVoxels / visibleFireVoxels : 0,
     fireIntensityMap,
   };
 }

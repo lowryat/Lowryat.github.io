@@ -95,6 +95,7 @@ export function applyTool(
             voxel.material = 'air';
             voxel.integrity = 0;
             voxel.roughness = 0;
+            voxel.depth = 0;
             removed++;
           } else {
             // Partially damaged: increase roughness from tool

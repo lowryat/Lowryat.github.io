@@ -1,0 +1,43 @@
+name: tradingbot-tests
+
+on:
+  push:
+    paths:
+      - "tradingbot/**"
+      - "tests/**"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - ".github/workflows/tradingbot-tests.yml"
+  pull_request:
+    paths:
+      - "tradingbot/**"
+      - "tests/**"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - ".github/workflows/tradingbot-tests.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run unit tests
+        run: pytest tests/ -v
+
+      - name: Smoke backtest (small synthetic dataset)
+        run: |
+          python -m tradingbot.backtest \
+            --strategy all \
+            --symbols BTC,ETH,SOL,AVAX \
+            --days 120 \
+            --seed 3 \
+            --rep ci-smoke \
+            --out reports/ci_smoke

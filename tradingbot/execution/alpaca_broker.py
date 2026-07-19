@@ -61,11 +61,29 @@ class AlpacaPaperBroker(Broker):
         return float(trades[pair].price)
 
     def submit_market_order(self, symbol: str, qty: float, side: str) -> dict:
-        from alpaca.trading.enums import OrderSide, TimeInForce
+        import time
+        from alpaca.trading.enums import OrderSide, OrderStatus, TimeInForce
         from alpaca.trading.requests import MarketOrderRequest
 
         pair = SYMBOL_MAP.get(symbol, symbol)
         order_side = OrderSide.BUY if side == "buy" else OrderSide.SELL
         req = MarketOrderRequest(symbol=pair, qty=qty, side=order_side, time_in_force=TimeInForce.GTC)
         order = self.client.submit_order(req)
-        return {"symbol": symbol, "qty": qty, "side": side, "order_id": str(order.id)}
+
+        # Poll until the paper order fills so we can return the actual fill price.
+        # Paper-trading orders normally fill within a few seconds.
+        fill_price: float | None = None
+        for _ in range(20):
+            order = self.client.get_order_by_id(order.id)
+            if order.status == OrderStatus.FILLED and order.filled_avg_price is not None:
+                fill_price = float(order.filled_avg_price)
+                break
+            time.sleep(0.5)
+
+        return {
+            "symbol": symbol,
+            "qty": qty,
+            "side": side,
+            "order_id": str(order.id),
+            "price": fill_price,  # None if fill wasn't confirmed within the poll window
+        }

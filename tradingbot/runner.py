@@ -109,6 +109,20 @@ def run_daily_step(
         rm.cash = broker.get_cash()
 
     latest_date = max(df.index[-1] for df in data.values())
+
+    # P2: idempotency guard — skip if this bar was already processed (e.g.
+    # a re-triggered workflow_dispatch or a feed that hasn't published a new
+    # bar yet).
+    if rm.current_day is not None and latest_date.date() == rm.current_day.date():
+        return {
+            "date": str(latest_date),
+            "skipped": True,
+            "reason": "already_processed",
+            "equity": rm.equity,
+            "positions": {sym: asdict(pos) for sym, pos in rm.positions.items()},
+            "actions": [],
+        }
+
     rm.begin_bar(latest_date)
 
     signals = {sym: strategy.generate_signals(df) for sym, df in data.items()}
@@ -124,8 +138,13 @@ def run_daily_step(
 
         if sym in rm.positions and rm.check_stop_hit(sym, float(bar["low"])):
             pos = rm.positions[sym]
-            broker.submit_market_order(sym, pos.qty, "sell")
-            trade = rm.close_position(sym, pos.stop, latest_date, "stop")
+            fill = broker.submit_market_order(sym, pos.qty, "sell")
+            # P1: use the actual broker fill price so risk-manager P&L matches
+            # the real account; fall back to pos.stop only if fill price is
+            # unavailable (PaperSimBroker always returns it; AlpacaPaperBroker
+            # polls until filled).
+            fill_price = fill.get("price") or pos.stop
+            trade = rm.close_position(sym, fill_price, latest_date, "stop")
             actions.append({"symbol": sym, "action": "exit_stop", "trade": asdict(trade) if trade else None})
 
     rm.mark_to_market(prices_close)
@@ -133,9 +152,9 @@ def run_daily_step(
     if rm.should_flatten_all():
         for sym in list(rm.positions.keys()):
             pos = rm.positions[sym]
-            broker.submit_market_order(sym, pos.qty, "sell")
-            price = prices_close.get(sym, pos.entry_price)
-            trade = rm.close_position(sym, price, latest_date, "circuit_breaker")
+            fill = broker.submit_market_order(sym, pos.qty, "sell")
+            fill_price = fill.get("price") or prices_close.get(sym, pos.entry_price)
+            trade = rm.close_position(sym, fill_price, latest_date, "circuit_breaker")
             actions.append(
                 {"symbol": sym, "action": "exit_circuit_breaker", "trade": asdict(trade) if trade else None}
             )
@@ -146,8 +165,9 @@ def run_daily_step(
             sig = signals[sym].loc[latest_date]
             if bool(sig.get("exit_signal", False)):
                 pos = rm.positions[sym]
-                broker.submit_market_order(sym, pos.qty, "sell")
-                trade = rm.close_position(sym, float(df.loc[latest_date, "close"]), latest_date, "signal")
+                fill = broker.submit_market_order(sym, pos.qty, "sell")
+                fill_price = fill.get("price") or float(df.loc[latest_date, "close"])
+                trade = rm.close_position(sym, fill_price, latest_date, "signal")
                 actions.append({"symbol": sym, "action": "exit_signal", "trade": asdict(trade) if trade else None})
 
         for sym, df in data.items():

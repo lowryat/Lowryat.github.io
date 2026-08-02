@@ -369,3 +369,45 @@ export function makeMuzzleFlash() {
   ctx.beginPath(); ctx.arc(0, 0, S * 0.18, 0, Math.PI * 2); ctx.fill();
   return new THREE.CanvasTexture(c);
 }
+
+// ---------------------------------------------------------------- procedural compound decals
+export function makeCompoundDecal(type = 'ammo') {
+  const S = 256;
+  const c = canvas(S, S), ctx = c.getContext('2d');
+  ctx.fillStyle = 'rgba(0,0,0,0)'; ctx.fillRect(0, 0, S, S);
+
+  if (type === 'ammo') {
+    // AMMO stencil text
+    ctx.fillStyle = 'rgba(230, 200, 90, 0.85)';
+    ctx.font = 'bold 72px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('AMMO', S / 2, S / 2 - 30);
+    // serial number
+    ctx.font = 'bold 24px monospace';
+    ctx.fillText('SER-7741-B', S / 2, S / 2 + 35);
+  } else if (type === 'hazard') {
+    // Yellow-black hazard stripes
+    ctx.fillStyle = 'rgba(255, 220, 30, 0.9)';
+    for (let i = 0; i < 8; i++) {
+      ctx.fillRect(i * S / 4, (i % 2) * S / 2, S / 4, S / 2);
+    }
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.font = 'bold 36px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚠', S / 2, S / 2);
+  } else if (type === 'fuel') {
+    // FUEL stencil
+    ctx.fillStyle = 'rgba(180, 100, 60, 0.9)';
+    ctx.font = 'bold 64px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('FUEL', S / 2, S / 2 - 20);
+    ctx.font = '20px monospace';
+    ctx.fillText('DIESEL', S / 2, S / 2 + 35);
+  }
+
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}

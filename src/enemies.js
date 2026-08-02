@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { makeCamo } from './textures.js';
 
-function buildSoldier(camoMat, gearMat, skinMat) {
+function buildSoldier(camoMat, gearMat, skinMat, variant = 0) {
   const g = new THREE.Group();
   const parts = {};
   const mk = (geo, mat, x, y, z) => {
@@ -33,13 +33,21 @@ function buildSoldier(camoMat, gearMat, skinMat) {
     shld.position.set(sx * 0.28, 0.20, 0);
     parts.torso.add(shld);
   }
-  // head + helmet
+  // head + helmet with variant coloring
   parts.head = mk(new THREE.BoxGeometry(0.2, 0.22, 0.22), skinMat, 0, 1.68, 0);
-  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.148, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), gearMat);
+
+  // helmet variant colors: desert tan, dark grey, olive
+  const helmetColors = [0x5a5a5a, 0x4a5a3a, 0x6a6a5a];
+  const helmetMat = new THREE.MeshStandardMaterial({ color: helmetColors[variant % 3], roughness: 0.85, metalness: 0.1 });
+
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.148, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), helmetMat);
   helmet.position.y = 0.05; helmet.scale.set(1, 0.9, 1.1); helmet.castShadow = true;
   parts.head.add(helmet);
+
+  // goggles with variant tint
+  const goggleTint = variant === 1 ? 0x1a1a1a : variant === 2 ? 0x2a2a1a : 0x101214;
   const goggles = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.05, 0.04),
-    new THREE.MeshStandardMaterial({ color: 0x101214, roughness: 0.3 }));
+    new THREE.MeshStandardMaterial({ color: goggleTint, roughness: 0.3, metalness: 0.2 }));
   goggles.position.set(0, 0.02, 0.11);
   parts.head.add(goggles);
   // limbs (pivot at top)
@@ -110,7 +118,8 @@ export class EnemyManager {
   }
 
   spawn(x, z, patrolRadius = 12) {
-    const { group, parts } = buildSoldier(this.camo, this.gear, this.skin);
+    const variant = this.enemies.length % 3;
+    const { group, parts } = buildSoldier(this.camo, this.gear, this.skin, variant);
     group.position.set(x, 0, z);
     this.scene.add(group);
     const e = {
@@ -130,6 +139,8 @@ export class EnemyManager {
       dead: false,
       deathT: 0,
       alertT: 0,
+      idleT: Math.random() * 10,
+      idlePhase: Math.random() * Math.PI * 2,
     };
     // register hittable meshes → owner lookup
     group.traverse((o) => { if (o.isMesh) o.userData.enemy = e; });
@@ -282,22 +293,50 @@ export class EnemyManager {
         }
       }
 
-      // walk cycle with per-enemy variation
+      // walk cycle with per-enemy variation OR idle animation
       const speedNorm = Math.min(e.speed / 3, 1);
-      const speedMod = 1.0 + Math.sin(e.walkT * 0.3 + e.home.x * 0.01) * 0.15;
-      e.walkT += dt * (2 + e.speed * 2.4) * speedMod;
-      const sw = Math.sin(e.walkT) * speedNorm * 0.55;
-      const armPhase = Math.sin(e.walkT + (e.home.z * 0.01)) * speedNorm * 0.5;
-      // leg swing
-      e.parts.legL.rotation.x = sw;
-      e.parts.legR.rotation.x = -sw;
-      // arms with offset phase
-      e.parts.armL.rotation.x = -armPhase - 0.45;
-      e.parts.armR.rotation.x = armPhase - 0.55;
-      // torso twist during walk
-      e.group.rotation.z = Math.sin(e.walkT * 0.5) * speedNorm * 0.08;
-      // bob
-      e.group.position.y = Math.abs(Math.sin(e.walkT)) * 0.04 * speedNorm;
+
+      if (speedNorm < 0.05) {
+        // idle animation: breathing, stance shift, equipment adjustment
+        e.idleT += dt;
+        const breathe = Math.sin(e.idleT * 0.8 + e.idlePhase) * 0.02;
+        const sway = Math.sin(e.idleT * 0.35 + e.idlePhase) * 0.08;
+        const headShift = Math.sin(e.idleT * 0.5 + e.idlePhase * 0.5) * 0.15;
+
+        // slight vertical breathing motion
+        e.group.position.y = breathe;
+        // gentle weight shift (stance sway)
+        e.group.rotation.z = sway * 0.04;
+        // head occasional glance
+        e.parts.head.rotation.y = headShift;
+
+        // arms at ready with slight fidget
+        const fidget = Math.sin(e.idleT * 0.6 + e.idlePhase) * 0.08;
+        e.parts.armL.rotation.x = -0.55 + fidget * 0.3;
+        e.parts.armR.rotation.x = -0.65 + fidget * -0.3;
+
+        // legs nearly straight but micro-adjustment
+        e.parts.legL.rotation.x = Math.sin(e.idleT * 0.3 + e.idlePhase) * 0.05;
+        e.parts.legR.rotation.x = Math.sin(e.idleT * 0.3 + e.idlePhase + Math.PI) * 0.05;
+      } else {
+        // reset head for walk
+        e.parts.head.rotation.y = 0;
+
+        const speedMod = 1.0 + Math.sin(e.walkT * 0.3 + e.home.x * 0.01) * 0.15;
+        e.walkT += dt * (2 + e.speed * 2.4) * speedMod;
+        const sw = Math.sin(e.walkT) * speedNorm * 0.55;
+        const armPhase = Math.sin(e.walkT + (e.home.z * 0.01)) * speedNorm * 0.5;
+        // leg swing
+        e.parts.legL.rotation.x = sw;
+        e.parts.legR.rotation.x = -sw;
+        // arms with offset phase
+        e.parts.armL.rotation.x = -armPhase - 0.45;
+        e.parts.armR.rotation.x = armPhase - 0.55;
+        // torso twist during walk
+        e.group.rotation.z = Math.sin(e.walkT * 0.5) * speedNorm * 0.08;
+        // bob
+        e.group.position.y = Math.abs(Math.sin(e.walkT)) * 0.04 * speedNorm;
+      }
     }
   }
 }

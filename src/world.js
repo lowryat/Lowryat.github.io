@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import {
   makeAsphalt, makeGround, makeConcrete, makeMetal, makeWood,
-  makeFacade, makeHazard, makeSoftParticle,
+  makeFacade, makeHazard, makeSoftParticle, makeCompoundDecal,
 } from './textures.js';
 
 export const SUN_DIR = new THREE.Vector3(-0.55, 0.28, -0.79).normalize();
@@ -603,11 +603,24 @@ export function buildWorld(scene, renderer) {
     // south-west crates
     [-34, -22, 0.1], [-32.6, -23.4, 0.8], [-35.2, -23, 0.5, 1.1],
   ];
+  // decal textures for tactical labeling
+  const decalAmmo = makeCompoundDecal('ammo');
+  const decalHazard = makeCompoundDecal('hazard');
+  const decalFuel = makeCompoundDecal('fuel');
+
   for (const [x, z, r, y] of crateSpots) {
     const c = crate(mats, 1.2 + Math.random() * 0.4);
     c.position.set(x, (y || 0) + 0.7, z);
     c.rotation.y = r;
     solid(c);
+    // occasional decal on crate faces
+    if (Math.random() < 0.35) {
+      const decalType = Math.random() < 0.6 ? decalAmmo : Math.random() < 0.5 ? decalHazard : decalFuel;
+      const decal = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.6),
+        new THREE.MeshStandardMaterial({ map: decalType, transparent: true, alphaTest: 0.1, roughness: 0.7 }));
+      decal.position.z = 0.72;
+      c.add(decal);
+    }
   }
   // barrels expanded
   for (const [x, z] of [

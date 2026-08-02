@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>BLACKSITE: REDLINE</title>
+<style>
+  :root{
+    --hud-amber:#ffb454; --hud-white:#f5f2ea; --hud-red:#ff4a3d; --hud-dim:rgba(245,242,234,.55);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    -webkit-user-select:none;user-select:none}
+  #app{position:fixed;inset:0}
+  canvas{display:block}
+
+  /* ---------- shared ---------- */
+  .abs{position:absolute}
+  .hidden{display:none!important}
+  .mono{font-family:'Consolas','Roboto Mono',monospace}
+
+  /* ---------- boot / menu ---------- */
+  #menu{position:absolute;inset:0;z-index:40;display:flex;flex-direction:column;justify-content:center;
+    background:radial-gradient(120% 90% at 30% 20%, rgba(30,20,12,.25), rgba(0,0,0,.78) 75%);
+    padding-left:8vw;transition:opacity .6s ease;color:var(--hud-white)}
+  #menu.fade{opacity:0;pointer-events:none}
+  #menu .kicker{letter-spacing:.55em;font-size:12px;color:var(--hud-amber);font-weight:600;margin-bottom:14px;text-transform:uppercase}
+  #menu h1{font-size:clamp(44px,7vw,96px);font-weight:800;letter-spacing:.02em;line-height:.95;text-transform:uppercase;
+    text-shadow:0 2px 30px rgba(0,0,0,.8)}
+  #menu h1 .red{color:var(--hud-red);text-shadow:0 0 26px rgba(255,74,61,.45)}
+  #menu .sub{margin-top:16px;font-size:14px;color:var(--hud-dim);letter-spacing:.18em;text-transform:uppercase}
+  #menu .btns{margin-top:52px;display:flex;flex-direction:column;gap:10px;width:300px}
+  .mbtn{position:relative;text-align:left;padding:13px 20px;font-size:14px;letter-spacing:.28em;text-transform:uppercase;
+    color:var(--hud-white);background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.14);
+    cursor:pointer;transition:all .15s ease;font-weight:600}
+  .mbtn:hover{background:rgba(255,180,84,.14);border-color:var(--hud-amber);padding-left:30px;color:var(--hud-amber)}
+  .mbtn.primary{border-color:var(--hud-amber);background:rgba(255,180,84,.10)}
+  #menu .ctrls{margin-top:56px;font-size:12px;color:var(--hud-dim);line-height:2;letter-spacing:.08em}
+  #menu .ctrls b{color:var(--hud-white);font-weight:600;display:inline-block;min-width:120px}
+  #menu .foot{position:absolute;bottom:26px;left:8vw;right:8vw;display:flex;justify-content:space-between;
+    font-size:11px;color:rgba(245,242,234,.35);letter-spacing:.2em;text-transform:uppercase}
+  #boot{position:absolute;inset:0;z-index:50;background:#050403;display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:18px;color:var(--hud-dim);transition:opacity .5s}
+  #boot.fade{opacity:0;pointer-events:none}
+  #boot .bar{width:280px;height:2px;background:rgba(255,255,255,.12)}
+  #boot .bar i{display:block;height:100%;width:0%;background:var(--hud-amber);transition:width .2s}
+  #boot .t{font-size:11px;letter-spacing:.4em;text-transform:uppercase}
+
+  /* ---------- HUD ---------- */
+  #hud{position:absolute;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .4s;color:var(--hud-white)}
+  #hud.on{opacity:1}
+
+  #vignette{position:absolute;inset:0;box-shadow:inset 0 0 180px 60px rgba(0,0,0,.55);pointer-events:none}
+  #dmg{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .12s;
+    background:radial-gradient(ellipse at center, transparent 40%, rgba(180,10,5,.55) 100%)}
+
+  /* crosshair */
+  #cross{position:absolute;left:50%;top:50%;width:0;height:0}
+  #cross .l{position:absolute;background:var(--hud-white);box-shadow:0 0 3px rgba(0,0,0,.9);transition:opacity .15s}
+  #cross .h1{width:9px;height:2px;top:-1px}
+  #cross .h2{width:9px;height:2px;top:-1px}
+  #cross .v1{width:2px;height:9px;left:-1px}
+  #cross .v2{width:2px;height:9px;left:-1px}
+  #cross.ads .l{opacity:0}
+  #hitmark{position:absolute;left:50%;top:50%;width:0;height:0;opacity:0}
+  #hitmark .h{position:absolute;width:11px;height:2px;background:#fff;box-shadow:0 0 4px rgba(255,60,40,.9)}
+  #hitmark.kill .h{background:var(--hud-red)}
+  #hitmark .a{transform:rotate(45deg) translate(5px,-7px)}
+  #hitmark .b{transform:rotate(-45deg) translate(-16px,-7px)}
+  #hitmark .c{transform:rotate(-45deg) translate(5px,9px)}
+  #hitmark .d{transform:rotate(45deg) translate(-16px,9px)}
+
+  /* compass */
+  #compassWrap{position:absolute;top:26px;left:50%;transform:translateX(-50%);width:340px;height:30px;overflow:hidden;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);
+    mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent)}
+  #compass{position:absolute;top:0;white-space:nowrap;font-size:12px;letter-spacing:0;color:var(--hud-dim)}
+  #compass span{display:inline-block;width:60px;text-align:center;font-weight:600}
+  #compass span.card{color:var(--hud-white);font-size:13px}
+  #compassTick{position:absolute;top:22px;left:50%;transform:translateX(-50%);width:2px;height:8px;background:var(--hud-amber)}
+
+  /* objective */
+  #objective{position:absolute;top:70px;left:50%;transform:translateX(-50%);text-align:center;font-size:12px;
+    letter-spacing:.25em;text-transform:uppercase;color:var(--hud-dim)}
+  #objective b{color:var(--hud-amber);font-weight:700}
+
+  /* bottom left — health */
+  #plate-l{position:absolute;left:34px;bottom:30px}
+  #healthbar{width:190px;height:4px;background:rgba(255,255,255,.16);margin-top:8px;overflow:hidden}
+  #healthbar i{display:block;height:100%;width:100%;background:var(--hud-white);transition:width .2s,background .2s}
+  #callsign{font-size:11px;letter-spacing:.3em;color:var(--hud-dim);text-transform:uppercase}
+
+  /* bottom right — ammo */
+  #plate-r{position:absolute;right:34px;bottom:26px;text-align:right}
+  #ammo{font-size:38px;font-weight:800;line-height:1}
+  #ammo small{font-size:16px;color:var(--hud-dim);font-weight:600}
+  #wpnname{font-size:11px;letter-spacing:.3em;color:var(--hud-dim);text-transform:uppercase;margin-top:4px}
+  #firemode{font-size:10px;letter-spacing:.2em;color:var(--hud-amber);text-transform:uppercase}
+  #reloadhint{font-size:11px;letter-spacing:.2em;color:var(--hud-red);text-transform:uppercase;margin-top:4px;opacity:0}
+
+  /* interact + messages */
+  #interact{position:absolute;left:50%;top:58%;transform:translateX(-50%);font-size:13px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--hud-white);background:rgba(0,0,0,.45);padding:8px 18px;
+    border:1px solid rgba(255,255,255,.25)}
+  #interact b{color:var(--hud-amber)}
+  #killfeed{position:absolute;right:34px;top:96px;text-align:right;font-size:12px;color:var(--hud-dim)}
+  #killfeed div{margin-bottom:5px;letter-spacing:.06em;animation:kfIn .25s ease}
+  #killfeed b{color:var(--hud-amber)}
+  @keyframes kfIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+  #bigmsg{position:absolute;left:50%;top:34%;transform:translateX(-50%);font-size:30px;font-weight:800;
+    letter-spacing:.3em;text-transform:uppercase;color:var(--hud-amber);text-shadow:0 2px 24px rgba(0,0,0,.9);opacity:0;
+    transition:opacity .4s;text-align:center;white-space:nowrap}
+
+  /* driving cluster */
+  #drive{position:absolute;right:44px;bottom:34px;text-align:right}
+  #speed{font-size:52px;font-weight:800;line-height:.9;font-variant-numeric:tabular-nums}
+  #speed small{font-size:14px;color:var(--hud-dim);letter-spacing:.2em;font-weight:600}
+  #gear{font-size:13px;color:var(--hud-amber);letter-spacing:.3em;font-weight:700;margin-top:6px}
+  #rpmbar{width:200px;height:3px;background:rgba(255,255,255,.16);margin-top:8px;margin-left:auto}
+  #rpmbar i{display:block;height:100%;width:0;background:var(--hud-amber)}
+  #carname{font-size:10px;letter-spacing:.34em;color:var(--hud-dim);text-transform:uppercase;margin-top:8px}
+
+  /* death */
+  #death{position:absolute;inset:0;z-index:30;background:radial-gradient(ellipse at center, rgba(60,0,0,.45), rgba(0,0,0,.9));
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;color:var(--hud-white);
+    opacity:0;transition:opacity .8s;pointer-events:none}
+  #death.on{opacity:1;pointer-events:auto}
+  #death h2{font-size:44px;letter-spacing:.4em;font-weight:800;color:var(--hud-red);text-transform:uppercase}
+  #death p{font-size:13px;letter-spacing:.2em;color:var(--hud-dim);text-transform:uppercase}
+
+  #fps{position:absolute;left:10px;top:8px;font-size:10px;color:rgba(255,255,255,.4);z-index:25}
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.min.js",
+    "three/addons/": "./vendor/three/addons/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="hud">
+  <div id="vignette"></div>
+  <div id="dmg"></div>
+  <div id="compassWrap"><div id="compass"></div></div>
+  <div id="compassTick"></div>
+  <div id="objective">ELIMINATE HOSTILE FORCES&nbsp;&nbsp;<b id="objCount">0 / 12</b></div>
+  <div id="cross"><i class="l h1" style="left:8px"></i><i class="l h2" style="right:8px"></i><i class="l v1" style="top:8px"></i><i class="l v2" style="bottom:8px"></i></div>
+  <div id="hitmark"><i class="h a"></i><i class="h b"></i><i class="h c"></i><i class="h d"></i></div>
+  <div id="plate-l">
+    <div id="callsign">VIPER 2-1 &nbsp;·&nbsp; BLACKSITE KESSEL RIDGE</div>
+    <div id="healthbar"><i></i></div>
+  </div>
+  <div id="plate-r">
+    <div id="ammo"><span id="ammoCur">30</span> <small>/ <span id="ammoRes">120</span></small></div>
+    <div id="wpnname">MK-77 PHANTOM &nbsp;·&nbsp; 5.56</div>
+    <div id="firemode">FULL AUTO</div>
+    <div id="reloadhint">RELOAD [R]</div>
+  </div>
+  <div id="drive" class="hidden">
+    <div id="speed">0<small> KM/H</small></div>
+    <div id="rpmbar"><i></i></div>
+    <div id="gear">GEAR 1</div>
+    <div id="carname">STUTTGART TURBO S &nbsp;·&nbsp; FLAT-6</div>
+  </div>
+  <div id="interact" class="hidden">HOLD <b>[F]</b> — ENTER VEHICLE</div>
+  <div id="killfeed"></div>
+  <div id="bigmsg"></div>
+</div>
+
+<div id="death"><h2>K.I.A.</h2><p>Viper 2-1 is down — press [SPACE] to redeploy</p></div>
+
+<div id="menu" class="hidden">
+  <div class="kicker">Task Force 141 &nbsp;·&nbsp; Classified Operation</div>
+  <h1>BLACKSITE<br><span class="red">REDLINE</span></h1>
+  <div class="sub">Infiltrate the ridge · eliminate the garrison · drive out alive</div>
+  <div class="btns">
+    <button class="mbtn primary" id="btnPlay">Deploy</button>
+    <button class="mbtn" id="btnFree">Free Drive</button>
+  </div>
+  <div class="ctrls">
+    <div><b>W A S D</b> Move &nbsp;·&nbsp; <b>SHIFT</b> Sprint &nbsp;·&nbsp; <b>SPACE</b> Jump</div>
+    <div><b>MOUSE</b> Aim &nbsp;·&nbsp; <b>LMB</b> Fire &nbsp;·&nbsp; <b>RMB</b> ADS &nbsp;·&nbsp; <b>R</b> Reload</div>
+    <div><b>F</b> Enter / exit vehicle &nbsp;·&nbsp; <b>C</b> Camera &nbsp;·&nbsp; <b>SPACE</b> Handbrake</div>
+  </div>
+  <div class="foot"><span>Engine: WebGL2 / Three.js</span><span>All assets generated procedurally</span></div>
+</div>
+
+<div id="boot">
+  <div class="t">Establishing uplink</div>
+  <div class="bar"><i id="bootbar"></i></div>
+</div>
+
+<div id="fps" class="mono"></div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

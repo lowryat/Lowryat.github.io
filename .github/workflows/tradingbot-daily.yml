@@ -1,0 +1,48 @@
+name: tradingbot-daily
+
+on:
+  schedule:
+    # Daily at 00:05 UTC.
+    - cron: "5 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  daily-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily paper-trading step
+        env:
+          ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
+          ALPACA_API_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
+        run: |
+          if [ "${{ vars.TRADING_ENABLED }}" = "true" ]; then
+            echo "TRADING_ENABLED=true -> running against Alpaca *paper* broker"
+            python -m tradingbot.live --broker alpaca-paper
+          else
+            echo "TRADING_ENABLED is not 'true' -> dry run against in-memory paper-sim broker (no external orders placed)"
+            python -m tradingbot.live --broker paper-sim
+          fi
+
+      - name: Commit updated reports
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/live/
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "tradingbot: daily paper-trading run $(date -u +%F)"
+            git push
+          fi

@@ -13,16 +13,25 @@ function buildSoldier(camoMat, gearMat, skinMat) {
     g.add(m);
     return m;
   };
-  // torso + plate carrier
-  parts.torso = mk(new THREE.BoxGeometry(0.44, 0.56, 0.26), camoMat, 0, 1.24, 0);
+  // torso + plate carrier + neck
+  const neckMat = skinMat;
+  const neck = mk(new THREE.BoxGeometry(0.12, 0.18, 0.14), neckMat, 0, 1.52, 0);
+  neck.scale.y = 0.8;
+  parts.torso = mk(new THREE.BoxGeometry(0.44, 0.56, 0.26), camoMat, 0, 1.18, 0);
   const vest = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.42, 0.3), gearMat);
   vest.position.y = 0.02; vest.castShadow = true;
   parts.torso.add(vest);
-  // mag pouches
+  // mag pouches + detail
   for (let i = 0; i < 3; i++) {
     const p = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.12, 0.05), gearMat);
     p.position.set(-0.13 + i * 0.13, -0.08, 0.17);
     parts.torso.add(p);
+  }
+  // shoulder definition
+  for (const sx of [1, -1]) {
+    const shld = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.2), camoMat);
+    shld.position.set(sx * 0.28, 0.20, 0);
+    parts.torso.add(shld);
   }
   // head + helmet
   parts.head = mk(new THREE.BoxGeometry(0.2, 0.22, 0.22), skinMat, 0, 1.68, 0);
@@ -46,19 +55,33 @@ function buildSoldier(camoMat, gearMat, skinMat) {
   parts.armR = limb(0.13, 0.62, camoMat); parts.armR.position.set(0.30, 1.46, 0); g.add(parts.armR);
   parts.legL = limb(0.16, 0.94, camoMat); parts.legL.position.set(-0.13, 0.96, 0); g.add(parts.legL);
   parts.legR = limb(0.16, 0.94, camoMat); parts.legR.position.set(0.13, 0.96, 0); g.add(parts.legR);
-  // rifle held across
+  // rifle held across with more detail
   const rifle = new THREE.Group();
-  const recv = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.5),
-    new THREE.MeshStandardMaterial({ color: 0x1c1e21, roughness: 0.5, metalness: 0.7 }));
+  const metalMat = new THREE.MeshStandardMaterial({ color: 0x1c1e21, roughness: 0.5, metalness: 0.7 });
+  const recv = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.5), metalMat);
   rifle.add(recv);
-  const brl = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.3, 8),
+  // receiver details (serrations via nested box)
+  const rail = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.025, 0.45), metalMat);
+  rail.position.set(0, 0.05, -0.05);
+  rifle.add(rail);
+  // barrel
+  const brl = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.3, 12),
     new THREE.MeshStandardMaterial({ color: 0x131518, metalness: 0.8, roughness: 0.4 }));
   brl.rotation.x = Math.PI / 2; brl.position.z = -0.36;
   rifle.add(brl);
+  // gas tube above barrel
+  const gas = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.28, 8), metalMat);
+  gas.rotation.x = Math.PI / 2; gas.position.set(0, 0.04, -0.34);
+  rifle.add(gas);
+  // magazine with curved profile
   const mag = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.12, 0.06),
     new THREE.MeshStandardMaterial({ color: 0x2a2c22, roughness: 0.6 }));
   mag.position.set(0, -0.09, -0.04);
   rifle.add(mag);
+  // handguard
+  const hand = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.035, 0.22), metalMat);
+  hand.position.set(0, 0.01, -0.16);
+  rifle.add(hand);
   rifle.position.set(0.06, 1.34, 0.26);
   rifle.rotation.y = -0.12;
   g.add(rifle);
@@ -132,6 +155,14 @@ export class EnemyManager {
     if (e.hp <= 0) {
       e.dead = true;
       e.deathT = 0;
+      // compute hit direction for momentum-preserving ragdoll
+      const hitDir = e.group.position.clone().sub(point).normalize();
+      e.deathMomentum = hitDir.multiplyScalar(2.5);
+      e.deathTorque = new THREE.Vector3(
+        (Math.random() - 0.5) * 1.2,
+        (Math.random() - 0.5) * 0.8,
+        (Math.random() - 0.5) * 1.2
+      );
       this.killCount++;
       this.audio.enemyDeath();
       return { killed: true, headshot };
@@ -150,10 +181,13 @@ export class EnemyManager {
   update(dt, playerPos, playerInVehicle, occluders) {
     for (const e of this.enemies) {
       if (e.dead) {
-        // fall over, sink slightly, then keep the body around
+        // momentum-preserving ragdoll: fall with directional bias
         e.deathT += dt;
         const k = Math.min(1, e.deathT * 2.2);
-        e.group.rotation.x = -k * Math.PI / 2 * 0.96;
+        // lean in hit direction initially, then flatten out
+        const leanFactor = Math.max(0, 1 - e.deathT * 0.8);
+        e.group.rotation.x = -k * Math.PI / 2 * 0.96 + e.deathMomentum.x * leanFactor * 0.5;
+        e.group.rotation.z = e.deathMomentum.z * leanFactor * 0.3 + e.deathTorque.z * k * 0.4;
         e.group.position.y = -0.12 * k;
         continue;
       }
@@ -248,15 +282,22 @@ export class EnemyManager {
         }
       }
 
-      // walk cycle
-      e.walkT += dt * (2 + e.speed * 2.4);
-      const sw = Math.sin(e.walkT) * Math.min(e.speed / 3, 1) * 0.55;
+      // walk cycle with per-enemy variation
+      const speedNorm = Math.min(e.speed / 3, 1);
+      const speedMod = 1.0 + Math.sin(e.walkT * 0.3 + e.home.x * 0.01) * 0.15;
+      e.walkT += dt * (2 + e.speed * 2.4) * speedMod;
+      const sw = Math.sin(e.walkT) * speedNorm * 0.55;
+      const armPhase = Math.sin(e.walkT + (e.home.z * 0.01)) * speedNorm * 0.5;
+      // leg swing
       e.parts.legL.rotation.x = sw;
       e.parts.legR.rotation.x = -sw;
-      e.parts.armL.rotation.x = -sw * 0.5 - 0.45;
-      e.parts.armR.rotation.x = sw * 0.5 - 0.55;
+      // arms with offset phase
+      e.parts.armL.rotation.x = -armPhase - 0.45;
+      e.parts.armR.rotation.x = armPhase - 0.55;
+      // torso twist during walk
+      e.group.rotation.z = Math.sin(e.walkT * 0.5) * speedNorm * 0.08;
       // bob
-      e.group.position.y = Math.abs(Math.sin(e.walkT)) * 0.04 * Math.min(e.speed / 3, 1);
+      e.group.position.y = Math.abs(Math.sin(e.walkT)) * 0.04 * speedNorm;
     }
   }
 }

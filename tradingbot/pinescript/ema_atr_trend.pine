@@ -1,0 +1,234 @@
+// ============================================================================
+// EMA ATR Trend Strategy  (tradingbot port for TradingView)
+// ============================================================================
+// Pine Script v6
+//
+// Faithful translation of tradingbot/strategies/ema_atr_trend.py plus
+// tradingbot/risk/manager.py for a single symbol.
+//
+// HOW TO USE
+// ----------
+// 1. Open a daily chart for BTC, ETH, SOL, or AVAX on TradingView.
+// 2. Open Pine Script Editor (bottom panel).
+// 3. Paste this script, click "Add to chart".
+// 4. Click "Strategy Tester" to review backtest results.
+// 5. For paper trading, click the play button (▶) next to "Paper trading"
+//    in the "Trading Panel" sidebar.
+// 6. Set up alerts (see ALERT CONDITIONS below) to receive notifications.
+//
+// PORTFOLIO NOTE
+// --------------
+// TradingView runs this per symbol. The 3 % daily / 5 % weekly circuit
+// breakers apply to THIS SYMBOL's unrealised P&L, not your whole portfolio.
+// For true multi-asset portfolio risk management, use the Alpaca paper
+// trading path in the companion tradingbot/ repository.
+//
+// ============================================================================
+
+//@version=6
+strategy(
+     title             = "EMA ATR Trend (tradingbot)",
+     shorttitle        = "EAT",
+     overlay           = true,
+     pyramiding        = 0,
+     default_qty_type  = strategy.fixed,   // qty = units, set per-bar below
+     default_qty_value = 0,
+     initial_capital   = 10000,
+     currency          = currency.USD,
+     commission_type   = strategy.commission.percent,
+     commission_value  = 0.1,              // ~Alpaca crypto taker fee
+     slippage          = 2,               // 2 ticks of slippage per fill
+     calc_on_every_tick = false           // daily bars only
+     )
+
+// ── INPUTS ───────────────────────────────────────────────────────────────────
+grp_ema  = "EMA Parameters"
+fast        = input.int  (12,   "Fast EMA Period",          group=grp_ema, minval=2)
+slow_p      = input.int  (48,   "Slow EMA Period",          group=grp_ema, minval=2)
+regime_len  = input.int  (100,  "Regime EMA Period",        group=grp_ema, minval=2)
+
+grp_risk = "Risk / Sizing"
+atr_len     = input.int  (14,   "ATR Period",               group=grp_risk, minval=1)
+atr_init    = input.float(2.5,  "ATR Initial Stop Mult",    group=grp_risk, step=0.1, minval=0.5)
+atr_trail   = input.float(3.0,  "ATR Chandelier Trail Mult",group=grp_risk, step=0.1, minval=0.5)
+risk_pct    = input.float(2.0,  "Risk Per Trade (% equity)",group=grp_risk, step=0.1, minval=0.1, maxval=10)
+max_alloc   = input.float(25.0, "Max Allocation Per Symbol (%)",group=grp_risk, step=1, minval=1, maxval=100)
+
+grp_cb   = "Circuit Breakers"
+dd_daily    = input.float(3.0,  "Daily DD Limit (%)",       group=grp_cb, step=0.1)
+dd_weekly   = input.float(5.0,  "Weekly DD Limit (%)",      group=grp_cb, step=0.1)
+
+// ── INDICATORS ───────────────────────────────────────────────────────────────
+ema_fast   = ta.ema(close, fast)
+ema_slow   = ta.ema(close, slow_p)
+ema_regime = ta.ema(close, regime_len)
+atr_val    = ta.atr(atr_len)
+
+// ── ENTRY / EXIT SIGNALS ─────────────────────────────────────────────────────
+bullish_regime = close > ema_regime
+cross_up       = ta.crossover(ema_fast, ema_slow) and bullish_regime
+cross_down     = ta.crossunder(ema_fast, ema_slow)
+
+// ── CHANDELIER TRAILING STOP ─────────────────────────────────────────────────
+// Ratchets upward only — never moves against the position.
+var float chan_stop = na
+var float peak      = na
+in_pos = strategy.position_size > 0
+
+if in_pos
+    peak      := math.max(nz(peak, high), high)
+    chan_stop := peak - atr_trail * atr_val
+else
+    peak      := na
+    chan_stop := na
+
+stop_hit = in_pos and low < chan_stop
+
+// ── POSITION SIZING ───────────────────────────────────────────────────────────
+// Mirrors risk/manager.py:
+//   risk_dollars  = equity * risk_per_trade_pct
+//   stop_distance = atr_init_mult * ATR
+//   qty           = risk_dollars / stop_distance
+//
+// Then capped by max_alloc: qty <= equity * max_alloc / 100 / close
+equity      = strategy.equity
+risk_dollars = equity * risk_pct / 100.0
+stop_dist    = atr_init * atr_val
+raw_qty      = stop_dist > 0 ? risk_dollars / stop_dist : 0
+max_qty      = close > 0 ? equity * max_alloc / 100.0 / close : 0
+entry_qty    = math.min(raw_qty, max_qty)
+
+// ── PER-SYMBOL CIRCUIT BREAKERS ───────────────────────────────────────────────
+// NOTE: these track THIS symbol's contribution to equity, not portfolio-level
+// drawdown.  The approximation uses strategy.equity (updated each bar on
+// daily charts).
+//
+// Daily:   compare today's equity to yesterday's
+// Weekly:  compare today's equity to the highest equity of the last 5 bars
+//          (a rolling 5-day window ≈ one ISO trading week).
+
+equity_prev   = nz(strategy.equity[1], equity)
+day_return    = equity_prev > 0 ? (equity - equity_prev) / equity_prev : 0.0
+dd_day_now    = math.max(0.0, -day_return)         // positive when losing
+
+week_peak     = ta.highest(strategy.equity, 5)
+dd_week_now   = week_peak > 0 ? math.max(0.0, (week_peak - equity) / week_peak) : 0.0
+
+var bool halted_day  = false
+var bool halted_week = false
+
+// Reset daily halt at start of each new bar (= new day on daily chart)
+if ta.change(time("D"))
+    halted_day := false
+
+// Reset weekly halt on Mondays
+if ta.change(time("W"))
+    halted_week := false
+
+if dd_day_now  >= dd_daily  / 100.0
+    halted_day  := true
+if dd_week_now >= dd_weekly / 100.0
+    halted_week := true
+
+halted = halted_day or halted_week
+
+// Flatten immediately when circuit breaker fires
+if halted and in_pos
+    strategy.close_all(comment = "circuit_breaker")
+
+// ── TRADE EXECUTION ───────────────────────────────────────────────────────────
+if cross_up and not halted and entry_qty > 0
+    strategy.entry("Long", strategy.long, qty = entry_qty, comment = "ema_cross_up")
+
+if cross_down and in_pos
+    strategy.close("Long", comment = "ema_cross_down")
+
+if stop_hit and in_pos
+    strategy.close("Long", comment = "chandelier_stop")
+
+// ── VISUALS ───────────────────────────────────────────────────────────────────
+plot(ema_fast,   "EMA Fast (" + str.tostring(fast) + ")",
+     color = color.new(color.blue, 0), linewidth = 1)
+plot(ema_slow,   "EMA Slow (" + str.tostring(slow_p) + ")",
+     color = color.new(color.orange, 0), linewidth = 1)
+plot(ema_regime, "EMA Regime (" + str.tostring(regime_len) + ")",
+     color = color.new(color.gray, 0), linewidth = 1)
+
+// Chandelier stop line — only shown while in a position
+plot(in_pos ? chan_stop : na, "Chandelier Stop",
+     color = color.red, linewidth = 2, style = plot.style_cross)
+
+// Initial stop level at entry
+var float init_stop_line = na
+if cross_up
+    init_stop_line := close - atr_init * atr_val
+if not in_pos
+    init_stop_line := na
+plot(init_stop_line, "Initial Stop", color = color.new(color.red, 60),
+     linewidth = 1, style = plot.style_stepline_diamond)
+
+// Background: halted = red tint, entry signal = green flash
+bgcolor(halted      ? color.new(color.red,   88) : na, title = "Halted")
+bgcolor(cross_up    ? color.new(color.green, 88) : na, title = "Entry")
+bgcolor(stop_hit    ? color.new(color.red,   80) : na, title = "Stop Hit")
+
+// Label P&L at close of each completed trade
+if strategy.closedtrades > strategy.closedtrades[1]
+    trade_pnl = strategy.closedtrades.profit(strategy.closedtrades - 1)
+    label.new(bar_index, high,
+         text   = (trade_pnl >= 0 ? "+" : "") + str.tostring(math.round(trade_pnl, 2)),
+         color  = trade_pnl >= 0 ? color.green : color.red,
+         style  = label.style_label_down,
+         textcolor = color.white, size = size.small)
+
+// ── ALERT CONDITIONS ─────────────────────────────────────────────────────────
+// Use these with TradingView alerts (right-click chart → Add Alert →
+// select the condition below) to get push notifications or webhook calls.
+
+alertcondition(cross_up and not halted,
+     title   = "ENTRY — EMA cross-up",
+     message = "{{ticker}} Daily: EMA cross-up + regime filter. BUY at {{close}}. ATR={{plot_2}}")
+
+alertcondition(cross_down and in_pos,
+     title   = "EXIT — EMA cross-down",
+     message = "{{ticker}} Daily: EMA cross-down. CLOSE LONG at {{close}}.")
+
+alertcondition(stop_hit,
+     title   = "EXIT — Chandelier stop",
+     message = "{{ticker}} Daily: Chandelier stop hit at {{close}}. CLOSE LONG.")
+
+alertcondition(halted and not halted[1],
+     title   = "CIRCUIT BREAKER FIRED",
+     message = "{{ticker}} Daily: Circuit breaker fired (DD limit reached). FLATTEN ALL.")
+
+alertcondition(halted_day  and not halted_day[1],
+     title   = "Daily DD limit reached",
+     message = "{{ticker}}: Daily drawdown limit (" + str.tostring(dd_daily) + "%) reached.")
+
+alertcondition(halted_week and not halted_week[1],
+     title   = "Weekly DD limit reached",
+     message = "{{ticker}}: Weekly drawdown limit (" + str.tostring(dd_weekly) + "%) reached.")
+
+// ── INFO TABLE ────────────────────────────────────────────────────────────────
+var table info = table.new(position.top_right, 2, 7,
+     bgcolor = color.new(color.black, 70), border_width = 1)
+if barstate.islast
+    table.cell(info, 0, 0, "Strategy",    text_color=color.white, text_size=size.small)
+    table.cell(info, 1, 0, "EMA ATR Trend", text_color=color.yellow, text_size=size.small)
+    table.cell(info, 0, 1, "Equity",      text_color=color.white,  text_size=size.small)
+    table.cell(info, 1, 1, "$" + str.tostring(math.round(equity, 0)), text_color=color.white, text_size=size.small)
+    table.cell(info, 0, 2, "DD (day)",    text_color=color.white,  text_size=size.small)
+    table.cell(info, 1, 2, str.tostring(math.round(dd_day_now * 100, 2)) + "%",
+         text_color = dd_day_now >= dd_daily/100 ? color.red : color.green, text_size=size.small)
+    table.cell(info, 0, 3, "DD (week)",   text_color=color.white,  text_size=size.small)
+    table.cell(info, 1, 3, str.tostring(math.round(dd_week_now * 100, 2)) + "%",
+         text_color = dd_week_now >= dd_weekly/100 ? color.red : color.green, text_size=size.small)
+    table.cell(info, 0, 4, "Halted",      text_color=color.white,  text_size=size.small)
+    table.cell(info, 1, 4, halted ? "YES ⛔" : "No ✓",
+         text_color = halted ? color.red : color.green, text_size=size.small)
+    table.cell(info, 0, 5, "Position",    text_color=color.white,  text_size=size.small)
+    table.cell(info, 1, 5, in_pos ? str.tostring(math.round(strategy.position_size, 4)) + " units" : "Flat",
+         text_color = in_pos ? color.blue : color.gray, text_size=size.small)
+    table.cell(info, 0, 6, "Chan. Stop",  text_color=color.white,  text_size=size.small)
+    table.cell(info, 1, 6, in_pos ? "$" + str.tostring(math.round(chan_stop, 2)) : "—",
+         text_color = color.red, text_size=size.small)

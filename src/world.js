@@ -400,16 +400,16 @@ export function buildWorld(scene, renderer) {
   const mats = {
     ground: new THREE.MeshStandardMaterial({
       map: groundTex.map, normalMap: groundTex.normalMap,
-      normalScale: new THREE.Vector2(0.8, 0.8), roughness: 0.96, metalness: 0,
+      normalScale: new THREE.Vector2(2.0, 2.0), roughness: 0.96, metalness: 0,
     }),
     asphalt: new THREE.MeshStandardMaterial({
-      map: asphaltTex.map, normalMap: asphaltTex.normalMap, roughness: 0.9, metalness: 0,
+      map: asphaltTex.map, normalMap: asphaltTex.normalMap, roughness: 0.88, metalness: 0.05,
     }),
     concrete: new THREE.MeshStandardMaterial({
-      map: concTex.map, normalMap: concTex.normalMap, roughness: 0.94,
+      map: concTex.map, normalMap: concTex.normalMap, roughness: 0.92, metalness: 0,
     }),
     concreteDark: new THREE.MeshStandardMaterial({
-      map: concDarkTex.map, normalMap: concDarkTex.normalMap, roughness: 0.94,
+      map: concDarkTex.map, normalMap: concDarkTex.normalMap, roughness: 0.90, metalness: 0.08,
     }),
     metal: new THREE.MeshStandardMaterial({
       map: metalTex.map, normalMap: metalTex.normalMap, roughness: 0.55, metalness: 0.65,
@@ -507,16 +507,24 @@ export function buildWorld(scene, renderer) {
     return mesh;
   };
 
-  // main HQ block
+  // main HQ block with wear details
   {
     const f = makeFacade(11, 3, 6, 0.35);
     const m = new THREE.MeshStandardMaterial({
-      map: f.map, emissiveMap: f.emissiveMap, emissive: 0xffb060, emissiveIntensity: 1.4, roughness: 0.9,
+      map: f.map, emissiveMap: f.emissiveMap, emissive: 0xffb060, emissiveIntensity: 1.4, roughness: 0.88, metalness: 0.05,
     });
     const hq = new THREE.Mesh(new THREE.BoxGeometry(26, 12, 16), [m, m, mats.concrete, mats.concrete, m, m]);
     hq.position.set(-6, 6, -18);
     hq.castShadow = hq.receiveShadow = true;
     solid(hq);
+    // damage streak decals: bullet impact marks on facade
+    for (let i = 0; i < 3; i++) {
+      const streak = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.8, 0.02),
+        new THREE.MeshStandardMaterial({ color: 0x3a3a38, roughness: 0.8, metalness: 0.1 }));
+      streak.position.set(-10 + i * 8, 6 + Math.random() * 3, 8.05);
+      streak.receiveShadow = true;
+      scene.add(streak);
+    }
     const lip = new THREE.Mesh(new THREE.BoxGeometry(27, 0.7, 17), mats.concreteDark);
     lip.position.set(-6, 12.3, -18); lip.castShadow = true;
     scene.add(lip);
@@ -612,7 +620,7 @@ export function buildWorld(scene, renderer) {
     b.position.set(x, elevNoise(x, z) + 0.55, z);
     solid(b);
   }
-  // fuel cans and small boxes
+  // fuel cans and small boxes (with shadows for depth)
   for (const [x, z, s] of [
     [10, 12, 0.7], [12.4, 11.2, 0.65], [-8, -6, 0.6], [-6.4, -7.6, 0.7],
     [28, 16, 0.65], [30.2, 14.6, 0.7], [-28, 8, 0.6], [-26.4, 6.8, 0.65],
@@ -622,6 +630,17 @@ export function buildWorld(scene, renderer) {
     box.castShadow = box.receiveShadow = true;
     scene.add(box);
     addCollider(colliders, box);
+    shootables.push(box);
+  }
+  // additional scattered fuel drums & containers near garage
+  for (const [x, z, r] of [[-34, 20, 0.2], [-32, 22.4, 0.7], [-36.2, 21.6, 0.3]]) {
+    const container = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 0.9, 10), mats.barrel);
+    container.position.set(x, elevNoise(x, z) + 0.45, z);
+    container.rotation.y = r;
+    container.castShadow = container.receiveShadow = true;
+    scene.add(container);
+    addCollider(colliders, container);
+    shootables.push(container);
   }
 
   // jersey barriers guarding the compound road edge

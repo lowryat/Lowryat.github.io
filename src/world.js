@@ -335,12 +335,13 @@ function buildMountains(scene) {
   const mat = new THREE.MeshBasicMaterial({ color: 0x8d6e55, fog: true });
   const matFar = new THREE.MeshBasicMaterial({ color: 0xb28d6e, fog: true });
   const mk = (radius, height, seed, m) => {
-    const seg = 140;
+    const seg = 280;
     const pos = [], idx = [];
     for (let i = 0; i <= seg; i++) {
       const a = (i / seg) * Math.PI * 2;
       const n1 = Math.sin(a * 3 + seed) + Math.sin(a * 7.3 + seed * 2) * 0.5 + Math.sin(a * 13.7 + seed * 3) * 0.3;
-      const h = height * (0.45 + 0.55 * Math.abs(n1));
+      const n2 = Math.sin(a * 22 + seed * 4) * 0.25 + Math.sin(a * 41 + seed * 5) * 0.12;
+      const h = height * (0.45 + 0.55 * Math.abs(n1 + n2));
       const x = Math.cos(a) * radius, z = Math.sin(a) * radius;
       pos.push(x, -8, z);
       pos.push(x, h, z);
@@ -477,6 +478,10 @@ export function buildWorld(scene, renderer) {
   const shoulder = new THREE.Mesh(ribbonAlong(curve, 13.5, SEGS, 0.015, 160), mats.concreteDark);
   shoulder.receiveShadow = true;
   scene.add(shoulder);
+  // road ditches for terrain integration
+  const ditch = new THREE.Mesh(ribbonAlong(curve, 15.8, SEGS, -0.3, 160), mats.ground);
+  ditch.receiveShadow = true;
+  scene.add(ditch);
   scene.add(new THREE.Mesh(stripeAlong(curve, 0, 0.18, 420, true, 0.05), mats.lineYellow));
   scene.add(new THREE.Mesh(stripeAlong(curve, -4.9, 0.16, SEGS, false, 0.05), mats.line));
   scene.add(new THREE.Mesh(stripeAlong(curve, 4.9, 0.16, SEGS, false, 0.05), mats.line));
@@ -578,22 +583,45 @@ export function buildWorld(scene, renderer) {
     scene.add(fl);
   }
 
-  // crates & cover clusters
+  // crates & cover clusters (expanded compound density)
   const crateSpots = [
     [8, 4, 0.2], [9.6, 4.8, 0.9], [8.7, 5.9, 0.4, 1.4], [-16, 14, 0.7], [-14.4, 15.2, 1.2],
     [24, -14, 0.1], [25.6, -13.2, 0.8], [24.8, -13.6, 0.5, 1.4], [-2, 22, 1.1], [46, 4, 0.5],
     [-44, -12, 0.9], [-45.6, -11, 1.5], [12, -28, 0.35], [13.4, -27, 1.0],
+    // additional cluster east of HQ
+    [-4, -8, 0.3], [-2.6, -9.4, 1.1], [-5.2, -9, 0.6, 1.2],
+    // north ammo storage
+    [18, 28, 0.4], [20.2, 29.6, 0.9], [19.4, 30.8, 0.5, 1.3],
+    // south-west crates
+    [-34, -22, 0.1], [-32.6, -23.4, 0.8], [-35.2, -23, 0.5, 1.1],
   ];
   for (const [x, z, r, y] of crateSpots) {
-    const c = crate(mats);
+    const c = crate(mats, 1.2 + Math.random() * 0.4);
     c.position.set(x, (y || 0) + 0.7, z);
     c.rotation.y = r;
     solid(c);
   }
-  for (const [x, z] of [[6, 8], [26, -10], [-18, 18], [44, 8], [-40, -16], [16, -24], [-4, 26]]) {
+  // barrels expanded
+  for (const [x, z] of [
+    [6, 8], [26, -10], [-18, 18], [44, 8], [-40, -16], [16, -24], [-4, 26],
+    // new barrel clusters
+    [-12, 6, 0.2], [-10.4, 7.8, 0.9], [32, -8, 0.4], [34.2, -6.8, 1.1],
+    [-22, -16, 0.3], [-20.6, -14.4, 0.8],
+  ]) {
     const b = barrel(mats);
-    b.position.set(x, 0.55, z);
+    b.position.set(x, elevNoise(x, z) + 0.55, z);
     solid(b);
+  }
+  // fuel cans and small boxes
+  for (const [x, z, s] of [
+    [10, 12, 0.7], [12.4, 11.2, 0.65], [-8, -6, 0.6], [-6.4, -7.6, 0.7],
+    [28, 16, 0.65], [30.2, 14.6, 0.7], [-28, 8, 0.6], [-26.4, 6.8, 0.65],
+  ]) {
+    const box = new THREE.Mesh(new THREE.BoxGeometry(s * 0.6, s * 0.8, s * 0.5), mats.metal);
+    box.position.set(x, elevNoise(x, z) + s * 0.4, z);
+    box.castShadow = box.receiveShadow = true;
+    scene.add(box);
+    addCollider(colliders, box);
   }
 
   // jersey barriers guarding the compound road edge
@@ -673,7 +701,7 @@ export function buildWorld(scene, renderer) {
     }
   }
 
-  // drifting dust motes ----------------------------------------------------
+  // drifting dust motes with wind variation --------------------------------
   const dustCount = 320;
   const dustGeo = new THREE.BufferGeometry();
   const dp = new Float32Array(dustCount * 3);
@@ -689,6 +717,12 @@ export function buildWorld(scene, renderer) {
     blending: THREE.AdditiveBlending, sizeAttenuation: true,
   }));
   scene.add(dust);
+  // pre-compute wind noise function
+  dust.userData.windNoise = (t) => {
+    const n1 = Math.sin(t * 0.3) * 0.6 + Math.sin(t * 0.13 + 7.3) * 0.25;
+    const n2 = Math.sin(t * 0.07 + 4.2) * 0.4;
+    return { x: (n1 + n2) * 2.5, z: Math.sin(t * 0.2) * 1.8 };
+  };
 
   // ------------------------------------------------------------------ api
   let time = 0;
@@ -709,9 +743,12 @@ export function buildWorld(scene, renderer) {
       sun.position.set(focus.x + SUN_DIR.x * 400, SUN_DIR.y * 400, focus.z + SUN_DIR.z * 400);
       sun.target.position.set(focus.x, 0, focus.z);
       // dust drifts on the wind and wraps around the focus point
+      const wind = dust.userData.windNoise(time);
       const pos = dust.geometry.attributes.position;
       for (let i = 0; i < dustCount; i++) {
-        let x = pos.getX(i) + dt * 2.1, y = pos.getY(i), z = pos.getZ(i) + dt * 0.7;
+        let x = pos.getX(i) + (wind.x + 2.1) * dt;
+        let y = pos.getY(i);
+        let z = pos.getZ(i) + (wind.z + 0.7) * dt;
         if (x - focus.x > 120) x -= 240;
         if (x - focus.x < -120) x += 240;
         if (z - focus.z > 120) z -= 240;

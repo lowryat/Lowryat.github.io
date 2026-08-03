@@ -13,7 +13,10 @@ import { AudioSystem } from './audio.js';
 import { makeMuzzleFlash } from './textures.js';
 
 const $ = (id) => document.getElementById(id);
-const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+// Coarse pointer + no hover = the device's primary input is touch (phones/tablets).
+// Plain touch-capability checks (maxTouchPoints, ontouchstart) also fire true on
+// touchscreen laptops/convertibles with a mouse attached, wrongly disabling pointer lock there.
+const isTouch = matchMedia('(hover: none) and (pointer: coarse)').matches;
 
 // ---------------------------------------------------------------- renderer
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
@@ -123,6 +126,7 @@ for (const [x, z] of enemySpawns) enemies.spawn(x, z);
 const S = { BOOT: 0, MENU: 1, FOOT: 2, DRIVE: 3, DEAD: 4 };
 let state = S.BOOT;
 let health = 100;
+let invincible = false; // Free Drive is a sandbox — no death, per project owner's request
 let lastDamageAt = -99;
 let hurtLevel = 0;
 let velY = 0;
@@ -181,13 +185,14 @@ if (isTouch) {
     joyStick.style.transform = `translate(${dx}px, ${dy}px)`;
   };
   joyBase.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); // suppress synthetic compat mousedown, which would otherwise set mouseDown=true and fire
     joyPointerId = e.pointerId;
     const r = joyBase.getBoundingClientRect();
     joyCenter = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
     try { joyBase.setPointerCapture(e.pointerId); } catch { /* no active pointer session */ }
     joyUpdate(e);
   });
-  joyBase.addEventListener('pointermove', (e) => { if (e.pointerId === joyPointerId) joyUpdate(e); });
+  joyBase.addEventListener('pointermove', (e) => { if (e.pointerId === joyPointerId) { e.preventDefault(); joyUpdate(e); } });
   const joyEnd = (e) => { if (e.pointerId === joyPointerId) { joyPointerId = null; joyReset(); } };
   joyBase.addEventListener('pointerup', joyEnd);
   joyBase.addEventListener('pointercancel', joyEnd);
@@ -195,12 +200,14 @@ if (isTouch) {
   const lookZone = $('tLook');
   let lookPointerId = null, lastLookX = 0, lastLookY = 0;
   lookZone.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); // suppress synthetic compat mousedown, which would otherwise set mouseDown=true and fire
     lookPointerId = e.pointerId;
     lastLookX = e.clientX; lastLookY = e.clientY;
     try { lookZone.setPointerCapture(e.pointerId); } catch { /* no active pointer session */ }
   });
   lookZone.addEventListener('pointermove', (e) => {
     if (e.pointerId !== lookPointerId) return;
+    e.preventDefault();
     touchLookDX += e.clientX - lastLookX;
     touchLookDY += e.clientY - lastLookY;
     lastLookX = e.clientX; lastLookY = e.clientY;
@@ -288,7 +295,7 @@ function bigMessage(text, ms = 2600) {
 }
 
 function damagePlayer(dmg) {
-  if (state === S.DEAD || state === S.BOOT || state === S.MENU) return;
+  if (state === S.DEAD || state === S.BOOT || state === S.MENU || invincible) return;
   health -= dmg;
   lastDamageAt = time;
   hurtLevel = Math.min(1, hurtLevel + dmg / 45);
@@ -508,6 +515,7 @@ function startGame(freeDrive = false) {
   $('menu').classList.add('fade');
   $('hud').classList.add('on');
   state = S.FOOT;
+  invincible = freeDrive;
   if (!debugNoLock && !isTouch) renderer.domElement.requestPointerLock();
   if (freeDrive) {
     yawObj.position.set(vehicle.pos.x + 2.5, 0, vehicle.pos.z);

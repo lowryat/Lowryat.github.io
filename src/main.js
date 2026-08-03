@@ -144,6 +144,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyF') tryToggleVehicle();
   if (e.code === 'Space' && state === S.DEAD) respawn();
   if (e.code === 'Space' && state === S.FOOT) e.preventDefault();
+  if (e.code === 'KeyV' && invincible) weapons.altMode = weapons.altMode === 'flame' ? 'rifle' : 'flame';
 });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
 addEventListener('mousedown', (e) => {
@@ -227,6 +228,10 @@ if (isTouch) {
   bindHold($('tJump'), () => { keys['Space'] = true; }, () => { keys['Space'] = false; });
   bindHold($('tHandbrake'), () => { keys['Space'] = true; }, () => { keys['Space'] = false; });
   $('tReload').addEventListener('pointerdown', (e) => { e.preventDefault(); if (state === S.FOOT) weapons.tryReload(); });
+  $('tAlt').addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (invincible) weapons.altMode = weapons.altMode === 'flame' ? 'rifle' : 'flame';
+  });
   $('tInteract').addEventListener('pointerdown', (e) => { e.preventDefault(); tryToggleVehicle(); });
   $('tCam').addEventListener('pointerdown', (e) => { e.preventDefault(); camMode = 1 - camMode; });
   $('death').addEventListener('pointerdown', () => { if (state === S.DEAD) respawn(); });
@@ -251,6 +256,8 @@ function updateTouchVisibility() {
   $('tReload').classList.toggle('hidden', state !== S.FOOT);
   $('tHandbrake').classList.toggle('hidden', state !== S.DRIVE);
   $('tCam').classList.toggle('hidden', state !== S.DRIVE);
+  $('tAlt').classList.toggle('hidden', state !== S.FOOT || !invincible);
+  $('tAlt').classList.toggle('active', weapons.altMode === 'flame');
   const nearCar = state === S.FOOT
     ? yawObj.position.distanceTo(vehicle.pos) < 3.6
     : state === S.DRIVE && Math.abs(vehicle.vLon) < 3;
@@ -265,6 +272,7 @@ const hud = {
   interact: $('interact'), drive: $('drive'), speed: $('speed'), gear: $('gear'),
   rpm: document.querySelector('#rpmbar i'), compass: $('compass'), killfeed: $('killfeed'),
   bigmsg: $('bigmsg'), reloadhint: $('reloadhint'), fps: $('fps'),
+  wpnname: $('wpnname'), firemode: $('firemode'),
 };
 // build compass strip
 {
@@ -398,7 +406,17 @@ function updateFoot(dt) {
   pitchObj.position.y = EYE + bobY + Math.sin(time * 1.7) * 0.006;
 
   // shooting
-  if (mouseDown && (locked || isTouch)) {
+  if (mouseDown && (locked || isTouch) && weapons.altMode === 'flame') {
+    weapons.fireFlame(dt, enemies.alive, (enemy, point, dmg) => {
+      const res = enemies.damage(enemy.parts.torso, dmg, point);
+      if (res.killed) {
+        audio.killConfirm();
+        killfeedAdd(`<b>VIPER 2-1</b> 🔥 Hostile`);
+        hud.objCount.textContent = `${enemies.killCount} / ${enemies.total}`;
+        if (enemies.aliveCount() === 0) bigMessage('AREA SECURE — RIDGE CLEARED', 4200);
+      }
+    });
+  } else if (mouseDown && (locked || isTouch)) {
     weapons.fire(enemies.hitMeshes, world.shootables, (mesh, point) => {
       const res = enemies.damage(mesh, 34, point);
       hitmarkTTL = 0.22;
@@ -480,9 +498,12 @@ function updateDrive(dt) {
 
 // ---------------------------------------------------------------- HUD frame update
 function updateHUD(dt) {
-  hud.ammoCur.textContent = weapons.ammo;
-  hud.ammoRes.textContent = weapons.reserve;
-  hud.reloadhint.style.opacity = (weapons.ammo === 0 && weapons.reloading <= 0) ? 1 : 0;
+  const flame = weapons.altMode === 'flame';
+  hud.ammoCur.textContent = flame ? '∞' : weapons.ammo;
+  hud.ammoRes.textContent = flame ? '∞' : weapons.reserve;
+  hud.reloadhint.style.opacity = (!flame && weapons.ammo === 0 && weapons.reloading <= 0) ? 1 : 0;
+  hud.wpnname.textContent = flame ? 'INCINERATOR · ALT-FIRE' : 'MK-77 PHANTOM · 5.56';
+  hud.firemode.textContent = flame ? 'CLOSE RANGE — 10YD CONE [V]' : 'FULL AUTO [V] FLAME';
   hud.health.style.width = `${health}%`;
   hud.health.style.background = health < 35 ? 'var(--hud-red)' : 'var(--hud-white)';
   hud.cross.classList.toggle('ads', weapons.isAiming);
@@ -516,10 +537,13 @@ function startGame(freeDrive = false) {
   $('hud').classList.add('on');
   state = S.FOOT;
   invincible = freeDrive;
+  weapons.infiniteAmmo = freeDrive;
+  if (!freeDrive) weapons.altMode = 'rifle';
   if (!debugNoLock && !isTouch) renderer.domElement.requestPointerLock();
   if (freeDrive) {
     yawObj.position.set(vehicle.pos.x + 2.5, 0, vehicle.pos.z);
     setTimeout(() => tryToggleVehicle(), 50);
+    bigMessage('FREE DRIVE — INVINCIBLE · INFINITE AMMO · [V] FLAMETHROWER', 4600);
   } else {
     bigMessage('ELIMINATE THE GARRISON — 12 HOSTILES', 3800);
   }

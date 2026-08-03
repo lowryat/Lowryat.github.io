@@ -10,7 +10,7 @@
   }
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
-    -webkit-user-select:none;user-select:none}
+    -webkit-user-select:none;user-select:none;touch-action:none;-webkit-touch-callout:none}
   #app{position:fixed;inset:0}
   canvas{display:block}
 
@@ -129,6 +129,29 @@
   #death p{font-size:13px;letter-spacing:.2em;color:var(--hud-dim);text-transform:uppercase}
 
   #fps{position:absolute;left:10px;top:8px;font-size:10px;color:rgba(255,255,255,.4);z-index:25}
+
+  /* ---------- touch controls (iPhone / mobile) ---------- */
+  #touch{position:absolute;inset:0;z-index:22;display:none}
+  #touch.on{display:block}
+  #tLook{position:absolute;right:0;top:0;width:62%;height:100%;touch-action:none}
+  #tJoyBase{position:absolute;left:28px;bottom:28px;width:132px;height:132px;border-radius:50%;
+    background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.22);touch-action:none}
+  #tJoyStick{position:absolute;left:50%;top:50%;width:58px;height:58px;margin-left:-29px;margin-top:-29px;
+    border-radius:50%;background:rgba(255,180,84,.32);border:2px solid rgba(255,180,84,.75);pointer-events:none}
+  .tbtn{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    background:rgba(255,255,255,.09);border:2px solid rgba(255,255,255,.28);color:var(--hud-white);
+    font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;touch-action:none;
+    -webkit-user-select:none;user-select:none;text-align:center}
+  .tbtn.active{background:rgba(255,180,84,.38);border-color:var(--hud-amber)}
+  .tbtn.hidden{display:none!important}
+  #tFire{right:28px;bottom:28px;width:92px;height:92px;background:rgba(255,74,61,.16);border-color:rgba(255,74,61,.5)}
+  #tADS{right:132px;bottom:56px;width:60px;height:60px}
+  #tJump{right:124px;bottom:150px;width:54px;height:54px}
+  #tReload{right:30px;bottom:134px;width:50px;height:50px;font-size:9px}
+  #tHandbrake{right:28px;bottom:28px;width:92px;height:92px;background:rgba(255,180,84,.14)}
+  #tCam{right:132px;bottom:56px;width:60px;height:60px}
+  #tInteract{left:50%;bottom:180px;transform:translateX(-50%);width:auto;height:auto;border-radius:8px;
+    padding:11px 20px;white-space:nowrap;font-size:11px}
 </style>
 <script type="importmap">
 {
@@ -171,7 +194,19 @@
   <div id="bigmsg"></div>
 </div>
 
-<div id="death"><h2>K.I.A.</h2><p>Viper 2-1 is down — press [SPACE] to redeploy</p></div>
+<div id="death"><h2>K.I.A.</h2><p id="deathHint">Viper 2-1 is down — press [SPACE] to redeploy</p></div>
+
+<div id="touch">
+  <div id="tLook"></div>
+  <div id="tJoyBase"><div id="tJoyStick"></div></div>
+  <div class="tbtn" id="tFire">FIRE</div>
+  <div class="tbtn" id="tADS">ADS</div>
+  <div class="tbtn" id="tJump">JUMP</div>
+  <div class="tbtn" id="tReload">RLD</div>
+  <div class="tbtn hidden" id="tHandbrake">E-BRK</div>
+  <div class="tbtn hidden" id="tCam">CAM</div>
+  <div class="tbtn hidden" id="tInteract">ENTER VEHICLE</div>
+</div>
 
 <div id="menu" class="hidden">
   <div class="kicker">Task Force 141 &nbsp;·&nbsp; Classified Operation</div>

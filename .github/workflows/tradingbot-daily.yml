@@ -22,17 +22,60 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run daily paper-trading step
+      # Broker selection (repo settings):
+      #   vars.TRADING_ENABLED != 'true'      -> dry run (paper-sim, no network orders)
+      #   vars.TRADING_ENABLED == 'true' and
+      #     vars.TRADING_BROKER == 'robinhood' -> ⚠ REAL MONEY (needs Robinhood
+      #                                          secrets incl. ROBINHOOD_LIVE_ACK)
+      #     otherwise                          -> Alpaca paper trading (simulated $)
+      #
+      # Notifications (optional secrets, any broker):
+      #   NTFY_TOPIC                     -> push via ntfy.sh phone app
+      #   TWILIO_ACCOUNT_SID/AUTH_TOKEN/
+      #   TWILIO_FROM/TWILIO_TO          -> SMS
+      - name: Run daily trading step
         env:
           ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
           ALPACA_API_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
+          ROBINHOOD_API_KEY: ${{ secrets.ROBINHOOD_API_KEY }}
+          ROBINHOOD_PRIVATE_KEY: ${{ secrets.ROBINHOOD_PRIVATE_KEY }}
+          ROBINHOOD_LIVE_ACK: ${{ secrets.ROBINHOOD_LIVE_ACK }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
+          TWILIO_TO: ${{ secrets.TWILIO_TO }}
         run: |
           if [ "${{ vars.TRADING_ENABLED }}" = "true" ]; then
-            echo "TRADING_ENABLED=true -> running against Alpaca *paper* broker"
-            python -m tradingbot.live --broker alpaca-paper
+            BROKER="${{ vars.TRADING_BROKER }}"
+            if [ "$BROKER" != "robinhood" ]; then
+              BROKER="alpaca-paper"
+              echo "TRADING_ENABLED=true -> Alpaca *paper* broker (simulated money)"
+            else
+              echo "TRADING_ENABLED=true, TRADING_BROKER=robinhood -> REAL-MONEY Robinhood run"
+            fi
           else
-            echo "TRADING_ENABLED is not 'true' -> dry run against in-memory paper-sim broker (no external orders placed)"
-            python -m tradingbot.live --broker paper-sim
+            BROKER="paper-sim"
+            echo "TRADING_ENABLED is not 'true' -> dry run against in-memory paper-sim broker"
+          fi
+
+          # TRADING_MODE=ensemble runs all four bots side by side, 25% of
+          # capital each with separate state files -- the Rep 8 tournament
+          # winner on risk-adjusted metrics. Anything else runs the single
+          # default strategy (ema_atr_trend).
+          if [ "${{ vars.TRADING_MODE }}" = "ensemble" ]; then
+            export NOTIFY_ONLY_ON_ACTION=true
+            for STRAT in ema_atr_trend donchian_breakout momentum_regime dual_momentum_adaptive; do
+              echo "--- ensemble bot: $STRAT ---"
+              python -m tradingbot.live --broker "$BROKER" \
+                --strategy "$STRAT" \
+                --state "reports/live/state_${STRAT}.json" \
+                --out "reports/live/${STRAT}" \
+                --starting-equity 2500
+            done
+          else
+            python -m tradingbot.live --broker "$BROKER"
           fi
 
       - name: Commit updated reports
@@ -43,6 +86,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "tradingbot: daily paper-trading run $(date -u +%F)"
+            git commit -m "tradingbot: daily trading run $(date -u +%F)"
             git push
           fi

@@ -105,8 +105,11 @@ def run_daily_step(
 
     rm = load_state(state_path, starting_equity, risk_config)
     if rm.current_day is None:
-        # First run: seed cash from the broker's actual account.
-        rm.cash = broker.get_cash()
+        # First run: seed cash from the broker's actual account, capped at
+        # starting_equity. The cap makes starting_equity act as this bot's
+        # allocation, so several bots (ensemble mode) can share one broker
+        # account without each claiming the full balance.
+        rm.cash = min(broker.get_cash(), starting_equity)
 
     latest_date = max(df.index[-1] for df in data.values())
 

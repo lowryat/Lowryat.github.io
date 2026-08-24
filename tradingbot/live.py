@@ -1,13 +1,24 @@
-"""CLI: python -m tradingbot.live --strategy <name> --broker {paper-sim,alpaca-paper}
+"""CLI: python -m tradingbot.live --broker {paper-sim,alpaca-paper,robinhood}
 
-Intended for a daily scheduled run (e.g. GitHub Actions). `--broker
-alpaca-paper` requires `alpaca-py` and ALPACA_API_KEY_ID/ALPACA_API_SECRET_KEY
-(Alpaca *paper* trading keys) -- untested in this sandbox since network
-access to Alpaca is blocked here; verify via `workflow_dispatch`.
+Intended for a daily scheduled run (e.g. GitHub Actions).
 
-`--broker paper-sim` (default) uses an in-memory simulated broker fed by
-synthetic data, so the whole pipeline is runnable end-to-end without network
-access (useful for local dry runs / CI smoke tests).
+Brokers:
+  paper-sim     (default) in-memory simulated broker fed by synthetic data;
+                runnable end-to-end with no network access (CI smoke tests).
+  alpaca-paper  Alpaca *paper* trading account (simulated money). Requires
+                alpaca-py + ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY.
+  robinhood     ⚠️ REAL MONEY. Robinhood crypto has no paper mode. Requires
+                ROBINHOOD_API_KEY / ROBINHOOD_PRIVATE_KEY *and* the explicit
+                acknowledgment env var
+                ROBINHOOD_LIVE_ACK=I_UNDERSTAND_THIS_TRADES_REAL_MONEY.
+                Market data comes from Alpaca's free crypto data feed
+                (no keys needed); execution goes to Robinhood.
+
+Neither network broker is testable in this sandbox (egress blocked) --
+verify via GitHub Actions `workflow_dispatch`.
+
+After each run, trade confirmations are sent via any configured notification
+channel (NTFY_TOPIC for push, TWILIO_* for SMS) -- see tradingbot/notify.py.
 """
 from __future__ import annotations
 
@@ -18,6 +29,7 @@ import os
 from tradingbot.config import DEFAULT_RISK_CONFIG, DEFAULT_STRATEGY
 from tradingbot.data.feed import SyntheticDataFeed
 from tradingbot.execution.paper_sim_broker import PaperSimBroker
+from tradingbot.notify import notify_report
 from tradingbot.runner import run_daily_step
 from tradingbot.strategies import build_strategy
 
@@ -27,7 +39,8 @@ DEFAULT_SYMBOLS = ["BTC", "ETH", "SOL", "AVAX"]
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description="Run one live/paper trading step.")
     p.add_argument("--strategy", default=DEFAULT_STRATEGY)
-    p.add_argument("--broker", default="paper-sim", choices=["paper-sim", "alpaca-paper"])
+    p.add_argument("--broker", default="paper-sim",
+                   choices=["paper-sim", "alpaca-paper", "robinhood"])
     p.add_argument("--symbols", default=",".join(DEFAULT_SYMBOLS))
     p.add_argument("--state", default="reports/live/state.json")
     p.add_argument("--out", default="reports/live")
@@ -49,6 +62,14 @@ def main(argv=None) -> int:
 
         broker = AlpacaPaperBroker()
         data_feed = AlpacaCryptoFeed()
+    elif args.broker == "robinhood":
+        # Real-money broker: RobinhoodCryptoBroker refuses to construct
+        # without the explicit ROBINHOOD_LIVE_ACK env var.
+        from tradingbot.data.alpaca_feed import AlpacaCryptoFeed
+        from tradingbot.execution.robinhood_broker import RobinhoodCryptoBroker
+
+        broker = RobinhoodCryptoBroker()
+        data_feed = AlpacaCryptoFeed()  # free crypto candles, no keys needed
     else:
         data_feed = SyntheticDataFeed(days=400, seed=1)
         data = data_feed.get_data(symbols)
@@ -64,11 +85,16 @@ def main(argv=None) -> int:
         state_path=args.state,
         starting_equity=args.starting_equity,
     )
+    report["broker"] = args.broker
 
     os.makedirs(args.out, exist_ok=True)
     out_path = os.path.join(args.out, f"{report['date']}.json")
     with open(out_path, "w") as f:
         json.dump(report, f, indent=2, default=str)
+
+    channels = notify_report(report)
+    if channels:
+        report["notified_via"] = channels
 
     print(json.dumps(report, indent=2, default=str))
     return 0

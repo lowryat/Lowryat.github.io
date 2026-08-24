@@ -1,11 +1,32 @@
-# Final Summary: Strategy Selection (Reps 0-7)
+# Final Summary: Strategy Selection (Reps 0-8)
 
 ## TL;DR
 
-**Default strategy: `ema_atr_trend`** (EMA cross + EMA(100) regime filter + ATR
-chandelier exit) **at `risk_per_trade_pct = 0.02`** (2% of equity risked per
-trade, `fast=12`, `slow=48`, unchanged from defaults). This is frozen as
-`DEFAULT_STRATEGY` / `DEFAULT_RISK_CONFIG` in `tradingbot/config.py`.
+**Recommended deployment: the ENSEMBLE — all four bots side by side, 25% of
+capital each** (`TRADING_MODE=ensemble` in the daily workflow). Rep 8's
+tournament showed the ensemble has the lowest weekly-drawdown tail of any
+contender (worst case 3.41% across 10 seeds — never near the 5% hard limit)
+while beating solo `ema_atr_trend` on median return (+13.8% vs +8.0%).
+
+**Single-strategy default remains `ema_atr_trend`** (EMA cross + EMA(100)
+regime filter + ATR chandelier exit) **at `risk_per_trade_pct = 0.02`**,
+frozen as `DEFAULT_STRATEGY` / `DEFAULT_RISK_CONFIG` in
+`tradingbot/config.py`.
+
+## Rep 8: Bot-vs-Bot Tournament (10 seeds)
+
+| Bot | Median Return | % Seeds Positive | Worst Return | Median Sharpe | Median Wkly DD | Worst Wkly DD |
+|---|---|---|---|---|---|---|
+| donchian_breakout | +23.6% | 60% | -3.9% | 1.02 | 3.62% | **6.63% ⚠ breach** |
+| **ENSEMBLE (4×25%)** | **+13.8%** | **90%** | -6.7% | 0.89 | **2.27%** | **3.41%** |
+| dual_momentum_adaptive | +14.4% | 90% | -10.0% | 0.71 | 3.20% | 3.56% |
+| momentum_regime | +10.7% | 80% | -5.4% | 0.69 | 2.93% | 3.21% |
+| ema_atr_trend | +8.0% | 80% | -7.6% | 0.60 | 3.30% | 4.65% |
+
+`donchian_breakout` has the best median return but only 60% of seeds positive
+and a weekly-DD tail that breaches the 5% hard limit. The ensemble captures
+most of the upside while diversification cuts the drawdown tail roughly in
+half — it is the deployment choice.
 
 After a 20-seed statistical sweep (Rep 5), a historical 2022-2024 validation
 on real-world price anchors (Rep 6), and an EMA parameter grid search with

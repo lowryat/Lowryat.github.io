@@ -3,3 +3,4 @@ numpy>=1.26
 requests>=2.31
 python-dateutil>=2.9
 alpaca-py>=0.30
+pynacl>=1.5

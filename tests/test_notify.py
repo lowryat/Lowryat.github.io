@@ -46,6 +46,69 @@ def test_notify_report_no_channels_is_noop():
     assert notify_report(report, env={}) == []
 
 
+def _entry_report():
+    return {
+        "date": "2024-02-04 00:00:00", "equity": 2500.0,
+        "dd_day": 0.0, "dd_week": 0.0,
+        "halted_today": False, "halted_week": False,
+        "actions": [{"symbol": "ETH", "action": "entry", "qty": 0.348,
+                     "price": 1796.0, "stop": 1668.06}],
+    }
+
+
+def test_empty_ntfy_server_falls_back_to_default(monkeypatch):
+    """GitHub Actions sets `FOO: ${{ secrets.FOO }}` to an empty string when
+    the secret is absent -- env.get(k, default) returns "" not the default.
+    That produced an invalid URL ("/topic") and a silently swallowed
+    MissingSchema, so no notification was ever sent."""
+    posted = {}
+
+    def fake_post(url, **kwargs):
+        posted["url"] = url
+        return FakeResponse()
+
+    monkeypatch.setattr("tradingbot.notify.requests.post", fake_post)
+
+    sent = notify_report(_entry_report(), env={
+        "NTFY_TOPIC": "my-topic",
+        "NTFY_SERVER": "",            # <- the bug trigger
+        "NOTIFY_ONLY_ON_ACTION": "true",
+    })
+
+    assert sent == ["ntfy"]
+    assert posted["url"] == "https://ntfy.sh/my-topic"
+
+
+def test_whitespace_only_topic_treated_as_unset():
+    assert notify_report(_entry_report(), env={"NTFY_TOPIC": "   "}) == []
+
+
+def test_custom_ntfy_server_still_honoured(monkeypatch):
+    posted = {}
+
+    def fake_post(url, **kwargs):
+        posted["url"] = url
+        return FakeResponse()
+
+    monkeypatch.setattr("tradingbot.notify.requests.post", fake_post)
+    notify_report(_entry_report(), env={
+        "NTFY_TOPIC": "t", "NTFY_SERVER": "https://ntfy.example.com/",
+    })
+    assert posted["url"] == "https://ntfy.example.com/t"
+
+
+def test_send_failure_is_reported_not_swallowed(capsys, monkeypatch):
+    def boom(url, **kwargs):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr("tradingbot.notify.requests.post", boom)
+    sent = notify_report(_entry_report(), env={"NTFY_TOPIC": "t"})
+
+    assert sent == []
+    out = capsys.readouterr().out
+    assert "ntfy send failed" in out and "network down" in out
+
+
 def test_send_ntfy_posts_to_topic():
     calls = []
 

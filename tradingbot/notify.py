@@ -66,7 +66,10 @@ def format_report_message(report: dict) -> tuple[str, str]:
 
 
 def send_ntfy(topic: str, title: str, body: str,
-              server: str = "https://ntfy.sh", post=requests.post) -> bool:
+              server: str = "https://ntfy.sh", post=None) -> bool:
+    # Resolve at call time (not as a default arg) so tests can monkeypatch
+    # requests.post and so no real request escapes during unit tests.
+    post = post or requests.post
     resp = post(
         f"{server.rstrip('/')}/{topic}",
         data=body.encode("utf-8"),
@@ -77,7 +80,8 @@ def send_ntfy(topic: str, title: str, body: str,
 
 
 def send_twilio_sms(account_sid: str, auth_token: str, from_num: str, to_num: str,
-                    body: str, post=requests.post) -> bool:
+                    body: str, post=None) -> bool:
+    post = post or requests.post
     resp = post(
         f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json",
         auth=(account_sid, auth_token),
@@ -107,23 +111,45 @@ def notify_report(report: dict, env: dict | None = None) -> list[str]:
     title, body = format_report_message(report)
     sent: list[str] = []
 
-    topic = env.get("NTFY_TOPIC")
-    if topic:
-        try:
-            if send_ntfy(topic, title, body, server=env.get("NTFY_SERVER", "https://ntfy.sh")):
-                sent.append("ntfy")
-        except Exception:
-            pass
+    # GitHub Actions sets `FOO: ${{ secrets.FOO }}` to an EMPTY STRING when the
+    # secret doesn't exist -- it does not leave the variable unset. So
+    # env.get(k, default) would return "" rather than the default. Treat empty
+    # as absent everywhere.
+    def cfg(key: str, default: str = "") -> str:
+        return (env.get(key) or "").strip() or default
 
-    sid = env.get("TWILIO_ACCOUNT_SID")
-    token = env.get("TWILIO_AUTH_TOKEN")
-    from_num = env.get("TWILIO_FROM")
-    to_num = env.get("TWILIO_TO")
+    topic = cfg("NTFY_TOPIC")
+    if topic:
+        server = cfg("NTFY_SERVER", "https://ntfy.sh")
+        try:
+            if send_ntfy(topic, title, body, server=server):
+                sent.append("ntfy")
+            else:
+                # Non-2xx: surface it so it's visible in the workflow log.
+                print(f"[notify] ntfy POST to {server} returned a non-success status")
+        except Exception as exc:
+            print(f"[notify] ntfy send failed: {type(exc).__name__}: {exc}")
+
+    sid = cfg("TWILIO_ACCOUNT_SID")
+    token = cfg("TWILIO_AUTH_TOKEN")
+    from_num = cfg("TWILIO_FROM")
+    to_num = cfg("TWILIO_TO")
     if sid and token and from_num and to_num:
         try:
             if send_twilio_sms(sid, token, from_num, to_num, f"{title}\n{body}"):
                 sent.append("sms")
-        except Exception:
-            pass
+            else:
+                print("[notify] Twilio returned a non-success status")
+        except Exception as exc:
+            print(f"[notify] SMS send failed: {type(exc).__name__}: {exc}")
+
+    if not sent:
+        configured = [n for n in ("NTFY_TOPIC", "TWILIO_ACCOUNT_SID") if cfg(n)]
+        if not configured:
+            print("[notify] no notification channel configured (set NTFY_TOPIC)")
+        else:
+            print(f"[notify] all configured channels failed: {configured}")
+    else:
+        print(f"[notify] sent via {', '.join(sent)}")
 
     return sent

@@ -66,19 +66,34 @@ jobs:
           # default strategy (ema_atr_trend).
           if [ "${{ vars.TRADING_MODE }}" = "ensemble" ]; then
             export NOTIFY_ONLY_ON_ACTION=true
+            # One bot failing (broker hiccup, insufficient buying power) must
+            # not skip the rest -- each has independent state. Collect
+            # failures and fail the step at the end so it's still visible.
+            FAILED=""
             for STRAT in ema_atr_trend donchian_breakout momentum_regime dual_momentum_adaptive; do
               echo "--- ensemble bot: $STRAT ---"
-              python -m tradingbot.live --broker "$BROKER" \
+              if ! python -m tradingbot.live --broker "$BROKER" \
                 --strategy "$STRAT" \
                 --state "reports/live/state_${STRAT}.json" \
                 --out "reports/live/${STRAT}" \
-                --starting-equity 2500
+                --starting-equity 2500; then
+                echo "::warning::ensemble bot $STRAT failed"
+                FAILED="$FAILED $STRAT"
+              fi
             done
+            if [ -n "$FAILED" ]; then
+              echo "::error::ensemble bots failed:$FAILED"
+              exit 1
+            fi
           else
             python -m tradingbot.live --broker "$BROKER"
           fi
 
+      # always(): if a bot submitted orders and then something later failed,
+      # its state file on disk reflects real fills. Not committing it would
+      # make the next run replay from stale state and re-trade.
       - name: Commit updated reports
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

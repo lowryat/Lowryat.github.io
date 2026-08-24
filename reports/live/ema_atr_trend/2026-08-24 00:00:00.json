@@ -1,0 +1,11 @@
+{
+  "date": "2026-08-24 00:00:00",
+  "equity": 2500.0,
+  "dd_day": 0.0,
+  "dd_week": 0.0,
+  "halted_today": false,
+  "halted_week": false,
+  "positions": {},
+  "actions": [],
+  "broker": "alpaca-paper"
+}

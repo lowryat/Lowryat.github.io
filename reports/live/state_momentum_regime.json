@@ -6,18 +6,18 @@
   "week_hwm": 2500.0,
   "halted_today": false,
   "halted_week": false,
-  "current_day": "2024-02-04T00:00:00",
+  "current_day": "2026-08-24T00:00:00",
   "current_week": [
-    2024,
-    5
+    2026,
+    35
   ],
   "dd_day": 0.0,
   "dd_week": 0.0,
   "last_prices": {
-    "BTC": 20208.189708899266,
-    "ETH": 1796.0000192546834,
-    "SOL": 25.893156014429753,
-    "AVAX": 8.552511787581826
+    "BTC": 77159.2125,
+    "ETH": 2442.6275,
+    "SOL": 94.18495,
+    "AVAX": 7.49205
   },
   "positions": {}
 }

@@ -1,0 +1,22 @@
+{
+  "date": "2026-08-24 00:00:00",
+  "equity": 2725.02348058634,
+  "dd_day": 0.0,
+  "dd_week": 0.0,
+  "halted_today": false,
+  "halted_week": false,
+  "positions": {
+    "ETH": {
+      "symbol": "ETH",
+      "qty": 0.34799554192620047,
+      "entry_price": 1796.0000192546834,
+      "entry_date": "2024-02-04 00:00:00",
+      "initial_stop": 1668.0605935913986,
+      "stop": 2341.171,
+      "atr_at_entry": 51.17577026531386,
+      "highest_price": 2466.1
+    }
+  },
+  "actions": [],
+  "broker": "alpaca-paper"
+}

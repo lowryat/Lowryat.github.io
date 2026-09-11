@@ -13,6 +13,10 @@ import { AudioSystem } from './audio.js';
 import { makeMuzzleFlash } from './textures.js';
 
 const $ = (id) => document.getElementById(id);
+// Coarse pointer + no hover = the device's primary input is touch (phones/tablets).
+// Plain touch-capability checks (maxTouchPoints, ontouchstart) also fire true on
+// touchscreen laptops/convertibles with a mouse attached, wrongly disabling pointer lock there.
+const isTouch = matchMedia('(hover: none) and (pointer: coarse)').matches;
 
 // ---------------------------------------------------------------- renderer
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
@@ -122,6 +126,7 @@ for (const [x, z] of enemySpawns) enemies.spawn(x, z);
 const S = { BOOT: 0, MENU: 1, FOOT: 2, DRIVE: 3, DEAD: 4 };
 let state = S.BOOT;
 let health = 100;
+let invincible = false; // Free Drive is a sandbox — no death, per project owner's request
 let lastDamageAt = -99;
 let hurtLevel = 0;
 let velY = 0;
@@ -139,6 +144,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyF') tryToggleVehicle();
   if (e.code === 'Space' && state === S.DEAD) respawn();
   if (e.code === 'Space' && state === S.FOOT) e.preventDefault();
+  if (e.code === 'KeyV' && invincible) weapons.altMode = weapons.altMode === 'flame' ? 'rifle' : 'flame';
 });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
 addEventListener('mousedown', (e) => {
@@ -153,7 +159,7 @@ addEventListener('contextmenu', (e) => e.preventDefault());
 
 document.addEventListener('pointerlockchange', () => {
   locked = document.pointerLockElement === renderer.domElement;
-  if (!locked && (state === S.FOOT || state === S.DRIVE) && !debugNoLock) showMenu(true);
+  if (!locked && (state === S.FOOT || state === S.DRIVE) && !debugNoLock && !isTouch) showMenu(true);
 });
 addEventListener('mousemove', (e) => {
   if (!locked || state === S.DEAD) return;
@@ -163,6 +169,102 @@ addEventListener('mousemove', (e) => {
   pitchObj.rotation.x = THREE.MathUtils.clamp(pitchObj.rotation.x, -1.45, 1.45);
 });
 
+// ---------------------------------------------------------------- touch controls (iPhone/mobile)
+const touchAxis = { x: 0, y: 0 };   // left joystick, -1..1 each axis
+let touchLookDX = 0, touchLookDY = 0; // accumulated right-side drag, consumed once per frame
+
+if (isTouch) {
+  const joyBase = $('tJoyBase'), joyStick = $('tJoyStick');
+  const JOY_R = 60;
+  let joyPointerId = null, joyCenter = { x: 0, y: 0 };
+  const joyReset = () => { touchAxis.x = 0; touchAxis.y = 0; joyStick.style.transform = 'translate(0,0)'; };
+  const joyUpdate = (e) => {
+    let dx = e.clientX - joyCenter.x, dy = e.clientY - joyCenter.y;
+    const d = Math.hypot(dx, dy);
+    if (d > JOY_R) { dx = (dx / d) * JOY_R; dy = (dy / d) * JOY_R; }
+    touchAxis.x = dx / JOY_R; touchAxis.y = dy / JOY_R;
+    joyStick.style.transform = `translate(${dx}px, ${dy}px)`;
+  };
+  joyBase.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); // suppress synthetic compat mousedown, which would otherwise set mouseDown=true and fire
+    joyPointerId = e.pointerId;
+    const r = joyBase.getBoundingClientRect();
+    joyCenter = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    try { joyBase.setPointerCapture(e.pointerId); } catch { /* no active pointer session */ }
+    joyUpdate(e);
+  });
+  joyBase.addEventListener('pointermove', (e) => { if (e.pointerId === joyPointerId) { e.preventDefault(); joyUpdate(e); } });
+  const joyEnd = (e) => { if (e.pointerId === joyPointerId) { joyPointerId = null; joyReset(); } };
+  joyBase.addEventListener('pointerup', joyEnd);
+  joyBase.addEventListener('pointercancel', joyEnd);
+
+  const lookZone = $('tLook');
+  let lookPointerId = null, lastLookX = 0, lastLookY = 0;
+  lookZone.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); // suppress synthetic compat mousedown, which would otherwise set mouseDown=true and fire
+    lookPointerId = e.pointerId;
+    lastLookX = e.clientX; lastLookY = e.clientY;
+    try { lookZone.setPointerCapture(e.pointerId); } catch { /* no active pointer session */ }
+  });
+  lookZone.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== lookPointerId) return;
+    e.preventDefault();
+    touchLookDX += e.clientX - lastLookX;
+    touchLookDY += e.clientY - lastLookY;
+    lastLookX = e.clientX; lastLookY = e.clientY;
+  });
+  const lookEnd = (e) => { if (e.pointerId === lookPointerId) lookPointerId = null; };
+  lookZone.addEventListener('pointerup', lookEnd);
+  lookZone.addEventListener('pointercancel', lookEnd);
+
+  const bindHold = (el, onDown, onUp) => {
+    el.addEventListener('pointerdown', (e) => { e.preventDefault(); onDown(); el.classList.add('active'); });
+    const up = () => { onUp && onUp(); el.classList.remove('active'); };
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  };
+  bindHold($('tFire'), () => { mouseDown = true; }, () => { mouseDown = false; });
+  bindHold($('tADS'), () => { weapons.adsHeld = true; }, () => { weapons.adsHeld = false; });
+  bindHold($('tJump'), () => { keys['Space'] = true; }, () => { keys['Space'] = false; });
+  bindHold($('tHandbrake'), () => { keys['Space'] = true; }, () => { keys['Space'] = false; });
+  $('tReload').addEventListener('pointerdown', (e) => { e.preventDefault(); if (state === S.FOOT) weapons.tryReload(); });
+  $('tAlt').addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (invincible) weapons.altMode = weapons.altMode === 'flame' ? 'rifle' : 'flame';
+  });
+  $('tInteract').addEventListener('pointerdown', (e) => { e.preventDefault(); tryToggleVehicle(); });
+  $('tCam').addEventListener('pointerdown', (e) => { e.preventDefault(); camMode = 1 - camMode; });
+  $('death').addEventListener('pointerdown', () => { if (state === S.DEAD) respawn(); });
+
+  // swap menu control hints for touch instructions
+  const ctrls = document.querySelector('#menu .ctrls');
+  if (ctrls) {
+    ctrls.innerHTML =
+      '<div><b>LEFT STICK</b> Move / Steer &nbsp;·&nbsp; <b>DRAG RIGHT</b> Look</div>' +
+      '<div><b>FIRE</b> Shoot &nbsp;·&nbsp; <b>ADS</b> Aim &nbsp;·&nbsp; <b>JUMP</b> Jump &nbsp;·&nbsp; <b>RLD</b> Reload</div>' +
+      '<div>Tap <b>ENTER VEHICLE</b> near the car &nbsp;·&nbsp; <b>E-BRK</b> Drift &nbsp;·&nbsp; <b>CAM</b> Toggle view</div>';
+  }
+  $('deathHint').textContent = 'Viper 2-1 is down — tap to redeploy';
+}
+
+function updateTouchVisibility() {
+  if (!isTouch) return;
+  $('touch').classList.toggle('on', state === S.FOOT || state === S.DRIVE);
+  $('tFire').classList.toggle('hidden', state !== S.FOOT);
+  $('tADS').classList.toggle('hidden', state !== S.FOOT);
+  $('tJump').classList.toggle('hidden', state !== S.FOOT);
+  $('tReload').classList.toggle('hidden', state !== S.FOOT);
+  $('tHandbrake').classList.toggle('hidden', state !== S.DRIVE);
+  $('tCam').classList.toggle('hidden', state !== S.DRIVE);
+  $('tAlt').classList.toggle('hidden', state !== S.FOOT || !invincible);
+  $('tAlt').classList.toggle('active', weapons.altMode === 'flame');
+  const nearCar = state === S.FOOT
+    ? yawObj.position.distanceTo(vehicle.pos) < 3.6
+    : state === S.DRIVE && Math.abs(vehicle.vLon) < 3;
+  $('tInteract').classList.toggle('hidden', !nearCar);
+  $('tInteract').textContent = state === S.DRIVE ? 'EXIT VEHICLE' : 'ENTER VEHICLE';
+}
+
 // ---------------------------------------------------------------- HUD helpers
 const hud = {
   ammoCur: $('ammoCur'), ammoRes: $('ammoRes'), health: document.querySelector('#healthbar i'),
@@ -170,6 +272,7 @@ const hud = {
   interact: $('interact'), drive: $('drive'), speed: $('speed'), gear: $('gear'),
   rpm: document.querySelector('#rpmbar i'), compass: $('compass'), killfeed: $('killfeed'),
   bigmsg: $('bigmsg'), reloadhint: $('reloadhint'), fps: $('fps'),
+  wpnname: $('wpnname'), firemode: $('firemode'),
 };
 // build compass strip
 {
@@ -200,7 +303,7 @@ function bigMessage(text, ms = 2600) {
 }
 
 function damagePlayer(dmg) {
-  if (state === S.DEAD || state === S.BOOT || state === S.MENU) return;
+  if (state === S.DEAD || state === S.BOOT || state === S.MENU || invincible) return;
   health -= dmg;
   lastDamageAt = time;
   hurtLevel = Math.min(1, hurtLevel + dmg / 45);
@@ -221,7 +324,7 @@ function respawn() {
   pitchObj.rotation.x = 0;
   weapons.ammo = 30; weapons.reserve = 150;
   state = S.FOOT;
-  if (!debugNoLock) renderer.domElement.requestPointerLock();
+  if (!debugNoLock && !isTouch) renderer.domElement.requestPointerLock();
 }
 
 // ---------------------------------------------------------------- vehicle enter/exit
@@ -260,12 +363,13 @@ function tryToggleVehicle() {
 // ---------------------------------------------------------------- player movement
 const moveVec = new THREE.Vector3();
 function updateFoot(dt) {
-  const sprint = keys['ShiftLeft'] && !weapons.isAiming;
+  const touchMag = Math.hypot(touchAxis.x, touchAxis.y);
+  const sprint = (keys['ShiftLeft'] || touchMag > 0.85) && !weapons.isAiming;
   const speed = sprint ? 7.2 : 4.4;
   moveVec.set(
-    (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0),
+    (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0) + touchAxis.x,
     0,
-    (keys['KeyS'] ? 1 : 0) - (keys['KeyW'] ? 1 : 0)
+    (keys['KeyS'] ? 1 : 0) - (keys['KeyW'] ? 1 : 0) + touchAxis.y
   );
   const moving = moveVec.lengthSq() > 0;
   if (moving) moveVec.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), yawObj.rotation.y);
@@ -302,7 +406,17 @@ function updateFoot(dt) {
   pitchObj.position.y = EYE + bobY + Math.sin(time * 1.7) * 0.006;
 
   // shooting
-  if (mouseDown && locked !== false) {
+  if (mouseDown && (locked || isTouch) && weapons.altMode === 'flame') {
+    weapons.fireFlame(dt, enemies.alive, (enemy, point, dmg) => {
+      const res = enemies.damage(enemy.parts.torso, dmg, point);
+      if (res.killed) {
+        audio.killConfirm();
+        killfeedAdd(`<b>VIPER 2-1</b> 🔥 Hostile`);
+        hud.objCount.textContent = `${enemies.killCount} / ${enemies.total}`;
+        if (enemies.aliveCount() === 0) bigMessage('AREA SECURE — RIDGE CLEARED', 4200);
+      }
+    });
+  } else if (mouseDown && (locked || isTouch)) {
     weapons.fire(enemies.hitMeshes, world.shootables, (mesh, point) => {
       const res = enemies.damage(mesh, 34, point);
       hitmarkTTL = 0.22;
@@ -337,9 +451,10 @@ const camPos = new THREE.Vector3();
 const camLook = new THREE.Vector3();
 let debugDrive = null;
 function updateDrive(dt) {
-  const throttle = debugDrive ? debugDrive.throttle : (keys['KeyW'] ? 1 : 0);
-  const brake = debugDrive ? (debugDrive.brake || 0) : (keys['KeyS'] ? 1 : 0);
-  const steer = debugDrive ? (debugDrive.steer || 0) : (keys['KeyA'] ? 1 : 0) - (keys['KeyD'] ? 1 : 0);
+  const throttle = debugDrive ? debugDrive.throttle : Math.min(1, Math.max(keys['KeyW'] ? 1 : 0, -touchAxis.y));
+  const brake = debugDrive ? (debugDrive.brake || 0) : Math.min(1, Math.max(keys['KeyS'] ? 1 : 0, touchAxis.y));
+  const steer = debugDrive ? (debugDrive.steer || 0)
+    : Math.max(-1, Math.min(1, (keys['KeyA'] ? 1 : 0) - (keys['KeyD'] ? 1 : 0) - touchAxis.x));
   vehicle.setInput(throttle, brake, steer, !!keys['Space']);
   vehicle.update(dt);
   if (vehicle.crashSpeed) { audio.crash(vehicle.crashSpeed); vehicle.crashSpeed = 0; }
@@ -383,9 +498,12 @@ function updateDrive(dt) {
 
 // ---------------------------------------------------------------- HUD frame update
 function updateHUD(dt) {
-  hud.ammoCur.textContent = weapons.ammo;
-  hud.ammoRes.textContent = weapons.reserve;
-  hud.reloadhint.style.opacity = (weapons.ammo === 0 && weapons.reloading <= 0) ? 1 : 0;
+  const flame = weapons.altMode === 'flame';
+  hud.ammoCur.textContent = flame ? '∞' : weapons.ammo;
+  hud.ammoRes.textContent = flame ? '∞' : weapons.reserve;
+  hud.reloadhint.style.opacity = (!flame && weapons.ammo === 0 && weapons.reloading <= 0) ? 1 : 0;
+  hud.wpnname.textContent = flame ? 'INCINERATOR · ALT-FIRE' : 'MK-77 PHANTOM · 5.56';
+  hud.firemode.textContent = flame ? 'CLOSE RANGE — 10YD CONE [V]' : 'FULL AUTO [V] FLAME';
   hud.health.style.width = `${health}%`;
   hud.health.style.background = health < 35 ? 'var(--hud-red)' : 'var(--hud-white)';
   hud.cross.classList.toggle('ads', weapons.isAiming);
@@ -418,10 +536,14 @@ function startGame(freeDrive = false) {
   $('menu').classList.add('fade');
   $('hud').classList.add('on');
   state = S.FOOT;
-  if (!debugNoLock) renderer.domElement.requestPointerLock();
+  invincible = freeDrive;
+  weapons.infiniteAmmo = freeDrive;
+  if (!freeDrive) weapons.altMode = 'rifle';
+  if (!debugNoLock && !isTouch) renderer.domElement.requestPointerLock();
   if (freeDrive) {
     yawObj.position.set(vehicle.pos.x + 2.5, 0, vehicle.pos.z);
     setTimeout(() => tryToggleVehicle(), 50);
+    bigMessage('FREE DRIVE — INVINCIBLE · INFINITE AMMO · [V] FLAMETHROWER', 4600);
   } else {
     bigMessage('ELIMINATE THE GARRISON — 12 HOSTILES', 3800);
   }
@@ -478,9 +600,19 @@ function frame() {
   time += dt;
 
   weapons.rig.visible = state === S.FOOT;
+
+  if (isTouch && (touchLookDX || touchLookDY) && (state === S.FOOT || state === S.DRIVE)) {
+    const sens = 0.0032 * (1 - weapons.ads * 0.55);
+    yawObj.rotation.y -= touchLookDX * sens;
+    pitchObj.rotation.x -= touchLookDY * sens;
+    pitchObj.rotation.x = THREE.MathUtils.clamp(pitchObj.rotation.x, -1.45, 1.45);
+    touchLookDX = 0; touchLookDY = 0;
+  }
+
   if (state === S.MENU || state === S.BOOT) menuCamera(dt);
   else if (state === S.FOOT) updateFoot(dt);
   else if (state === S.DRIVE) updateDrive(dt);
+  updateTouchVisibility();
 
   if (state === S.FOOT || state === S.DRIVE || state === S.DEAD) {
     focus.copy(state === S.DRIVE ? vehicle.pos : yawObj.position);

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Robinhood API Key Maker</title>
+<style>
+  :root { color-scheme: light; --bg:#F2F2F7; --card:#FFFFFF; --label:#000; --label-2:rgba(60,60,67,.6); --sep:rgba(60,60,67,.29); --blue:#007AFF; --green:#34C759; --orange:#FF9500; --fill:rgba(118,118,128,.12); --mono-bg:#F2F2F7; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; --bg:#000; --card:#1C1C1E; --label:#FFF; --label-2:rgba(235,235,245,.6); --sep:rgba(84,84,88,.6); --blue:#0A84FF; --green:#30D158; --orange:#FF9F0A; --fill:rgba(118,118,128,.24); --mono-bg:#2C2C2E; } }
+  :root[data-theme="dark"] { color-scheme: dark; --bg:#000; --card:#1C1C1E; --label:#FFF; --label-2:rgba(235,235,245,.6); --sep:rgba(84,84,88,.6); --blue:#0A84FF; --green:#30D158; --orange:#FF9F0A; --fill:rgba(118,118,128,.24); --mono-bg:#2C2C2E; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--label); font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif; font-size:17px; line-height:1.4; -webkit-font-smoothing:antialiased; }
+  .page { max-width:680px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:34px; font-weight:700; letter-spacing:.37px; margin:8px 0 4px; }
+  .sub { color:var(--label-2); font-size:15px; margin:0 0 20px; }
+  .card { background:var(--card); border-radius:16px; padding:18px; box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.06); margin-top:14px; }
+  .card h2 { font-size:17px; font-weight:600; margin:0 0 6px; }
+  .card p { margin:6px 0; font-size:15px; color:var(--label-2); }
+  .step { display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-top:.5px solid var(--sep); }
+  .step:first-of-type { border-top:0; }
+  .n { flex:0 0 26px; height:26px; border-radius:50%; background:var(--blue); color:#fff; font-weight:700; font-size:13px; display:inline-flex; align-items:center; justify-content:center; margin-top:1px; }
+  .step b { display:block; font-size:15px; }
+  .step span { font-size:14px; color:var(--label-2); }
+  .btn { appearance:none; border:0; background:var(--blue); color:#fff; font:inherit; font-weight:600; font-size:17px; padding:12px 20px; border-radius:12px; cursor:pointer; width:100%; }
+  .btn:active { opacity:.85; }
+  .btn.secondary { background:var(--fill); color:var(--blue); }
+  .key { margin-top:14px; }
+  .key label { display:block; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.4px; color:var(--label-2); margin-bottom:6px; }
+  .val { display:flex; gap:8px; align-items:stretch; }
+  .val code { flex:1; display:block; background:var(--mono-bg); border-radius:10px; padding:10px 12px; font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:13px; word-break:break-all; user-select:all; min-height:42px; }
+  .copy { appearance:none; border:0; background:var(--fill); color:var(--blue); font:inherit; font-weight:600; font-size:14px; padding:0 14px; border-radius:10px; cursor:pointer; white-space:nowrap; }
+  .copy.done { background:rgba(52,199,89,.18); color:var(--green); }
+  .warn { background:rgba(255,149,0,.14); border-radius:12px; padding:12px 14px; font-size:14px; margin-top:14px; }
+  .warn b { font-weight:600; }
+  .muted { font-size:13px; color:var(--label-2); margin-top:10px; }
+  pre { background:var(--mono-bg); border-radius:10px; padding:10px 12px; font-size:12.5px; overflow-x:auto; margin:8px 0 0; }
+  [hidden] { display:none !important; }
+  a { color:var(--blue); text-decoration:none; }
+</style>
+</head>
+<body>
+<main class="page">
+  <h1>Robinhood API Key Maker</h1>
+  <p class="sub">Creates the key pair Robinhood asks for. Everything happens in this browser tab; nothing is sent anywhere.</p>
+
+  <div class="card">
+    <h2>What is happening</h2>
+    <p>Robinhood's crypto API uses a matched pair of keys. You give Robinhood the <b>public</b> key so it can recognize your requests, and you keep the <b>private</b> key so your GitHub job can sign them. This page makes both.</p>
+    <button class="btn" id="gen" type="button">Generate key pair</button>
+    <div id="out" hidden>
+      <div class="key"><label>Public key · paste into Robinhood</label>
+        <div class="val"><code id="pub"></code><button class="copy" type="button" data-for="pub">Copy</button></div></div>
+      <div class="key"><label>Private key · paste into GitHub secret ROBINHOOD_PRIVATE_KEY</label>
+        <div class="val"><code id="priv"></code><button class="copy" type="button" data-for="priv">Copy</button></div></div>
+      <div class="warn"><b>Keep this tab open until both keys are pasted.</b> The private key exists only here. If you close the tab, generate a new pair and redo the Robinhood step. Never paste the private key into Robinhood, email, or a chat.</div>
+    </div>
+    <p class="muted" id="engine"></p>
+  </div>
+
+  <div class="card">
+    <h2>Then, in Robinhood</h2>
+    <div class="step"><i class="n">1</i><div><b>Open the API page</b><span>On the web: <a href="https://robinhood.com/account/crypto" target="_blank" rel="noopener">robinhood.com/account/crypto</a> → scroll to <b>API Trading</b> → <b>Add API key</b>. In the app: Account → Crypto → API. Two-factor authentication must be on.</span></div></div>
+    <div class="step"><i class="n">2</i><div><b>Name it</b><span>Something like <b>Portfolio monitor (read-only)</b>.</span></div></div>
+    <div class="step"><i class="n">3</i><div><b>Paste the public key</b><span>Use the Copy button above and paste into the <b>Public key</b> field.</span></div></div>
+    <div class="step"><i class="n">4</i><div><b>Permissions: read only</b><span>Tick the read options (account, holdings, orders, market data). Leave every <b>order placement / trading</b> permission unticked. This dashboard never trades.</span></div></div>
+    <div class="step"><i class="n">5</i><div><b>Skip IP allow-list, set no expiry (or one year)</b><span>GitHub's runners use changing IP addresses, so an allow-list would block the daily job.</span></div></div>
+    <div class="step"><i class="n">6</i><div><b>Approve and copy the API key</b><span>Robinhood may ask you to confirm in the app. It then shows an <b>API key</b> string. Copy it.</span></div></div>
+  </div>
+
+  <div class="card">
+    <h2>Finally, in GitHub</h2>
+    <div class="step"><i class="n">7</i><div><b>Open repository secrets</b><span><a href="https://github.com/lowryat/Lowryat.github.io/settings/secrets/actions" target="_blank" rel="noopener">github.com/lowryat/Lowryat.github.io/settings/secrets/actions</a></span></div></div>
+    <div class="step"><i class="n">8</i><div><b>New repository secret → <code>ROBINHOOD_API_KEY</code></b><span>Value: the API key string Robinhood showed in step 6.</span></div></div>
+    <div class="step"><i class="n">9</i><div><b>New repository secret → <code>ROBINHOOD_PRIVATE_KEY</code></b><span>Value: the private key from this page.</span></div></div>
+    <div class="step"><i class="n">10</i><div><b>Run the job</b><span><a href="https://github.com/lowryat/Lowryat.github.io/actions/workflows/portfolio-daily.yml" target="_blank" rel="noopener">Actions → portfolio-daily → Run workflow</a>, then check that the "Verify credentials" step prints <code>[robinhood] OK</code>.</span></div></div>
+  </div>
+
+  <div class="card">
+    <h2>Prefer the Terminal?</h2>
+    <p>Open Terminal on your Mac (Spotlight → “Terminal”), paste this one line, press Return. It prints the same two keys.</p>
+    <pre>curl -sL https://raw.githubusercontent.com/lowryat/Lowryat.github.io/main/scripts/make_robinhood_key.py | python3</pre>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  const b64 = (u8) => btoa(String.fromCharCode(...u8));
+
+  // --- Pure-JS Ed25519 public key derivation (RFC 8032), used when WebCrypto lacks Ed25519.
+  const P = (1n << 255n) - 19n;
+  const D = (-121665n * modInv(121666n)) % P;
+  function mod(a) { const r = a % P; return r < 0n ? r + P : r; }
+  function modPow(b, e) { let r = 1n; b = mod(b); while (e > 0n) { if (e & 1n) r = (r * b) % P; b = (b * b) % P; e >>= 1n; } return r; }
+  function modInv(a) { return modPow(a, P - 2n); }
+  const I = modPow(2n, (P - 1n) / 4n);
+  function recoverX(y) { const xx = mod((y * y - 1n) * modInv(mod(D * y * y + 1n))); let x = modPow(xx, (P + 3n) / 8n); if (mod(x * x - xx) !== 0n) x = mod(x * I); if (x % 2n !== 0n) x = P - x; return x; }
+  const By = mod(4n * modInv(5n)), Bx = recoverX(By);
+  const B = [Bx, By, 1n, mod(Bx * By)];
+  function add(p1, p2) { const [x1, y1, z1, t1] = p1, [x2, y2, z2, t2] = p2;
+    const a = mod((y1 - x1) * (y2 - x2)), b = mod((y1 + x1) * (y2 + x2)), c = mod(t1 * 2n * D * t2), dd = mod(z1 * 2n * z2);
+    const e = b - a, f = dd - c, g = dd + c, h = b + a; return [mod(e * f), mod(g * h), mod(f * g), mod(e * h)]; }
+  function mul(p, s) { let q = [0n, 1n, 1n, 0n]; while (s > 0n) { if (s & 1n) q = add(q, p); p = add(p, p); s >>= 1n; } return q; }
+  function encodePoint(p) { const zi = modInv(p[2]); const x = mod(p[0] * zi), y = mod(p[1] * zi); const v = y | ((x & 1n) << 255n); const out = new Uint8Array(32); let t = v; for (let i = 0; i < 32; i++) { out[i] = Number(t & 255n); t >>= 8n; } return out; }
+  async function pubFromSeedJS(seed) {
+    const h = new Uint8Array(await crypto.subtle.digest('SHA-512', seed));
+    let a = 0n; for (let i = 31; i >= 0; i--) a = (a << 8n) | BigInt(h[i]);
+    a &= (1n << 254n) - 8n; a |= 1n << 254n;
+    return encodePoint(mul(B, a));
+  }
+
+  async function generate(seedOverride) {
+    const seed = seedOverride || crypto.getRandomValues(new Uint8Array(32));
+    // Prefer WebCrypto's native Ed25519 when the browser has it (Safari 17+, Chrome 137+); verify it agrees with the JS path.
+    let pub = null, engine = 'pure JavaScript (RFC 8032)';
+    try {
+      if (!seedOverride) {
+        const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+        const pkcs8 = new Uint8Array(await crypto.subtle.exportKey('pkcs8', kp.privateKey));
+        const raw = new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey));
+        const s = pkcs8.slice(pkcs8.length - 32);
+        const check = await pubFromSeedJS(s);
+        if (raw.length === 32 && check.every((v, i) => v === raw[i])) { seed.set(s); pub = raw; engine = 'WebCrypto Ed25519 (native), cross-checked'; }
+      }
+    } catch (e) { /* fall through to JS path */ }
+    if (!pub) pub = await pubFromSeedJS(seed);
+    return { seed, pub, engine };
+  }
+
+  const $ = (id) => document.getElementById(id);
+  $('gen').addEventListener('click', async () => {
+    $('gen').disabled = true; $('gen').textContent = 'Generating…';
+    try {
+      const { seed, pub, engine } = await generate();
+      $('pub').textContent = b64(pub); $('priv').textContent = b64(seed);
+      $('out').hidden = false; $('engine').textContent = 'Generated locally with ' + engine + '. Reload the page to make a fresh pair.';
+      $('gen').textContent = 'Generate a new pair';
+      document.querySelectorAll('.copy').forEach(b => { b.textContent = 'Copy'; b.classList.remove('done'); });
+    } catch (e) { $('engine').textContent = 'Could not generate in this browser: ' + e.message + '. Use the Terminal command below.'; }
+    $('gen').disabled = false;
+  });
+  document.querySelectorAll('.copy').forEach(btn => btn.addEventListener('click', async () => {
+    const txt = $(btn.dataset.for).textContent;
+    try { await navigator.clipboard.writeText(txt); btn.textContent = 'Copied'; btn.classList.add('done'); }
+    catch { const r = document.createRange(); r.selectNodeContents($(btn.dataset.for)); const s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = 'Select + ⌘C'; }
+  }));
+  // Test hook: derive from a known seed so the JS math can be checked against Python.
+  window.__keygenFromSeed = async (hex) => { const seed = new Uint8Array(hex.match(/../g).map(h => parseInt(h, 16))); const { pub } = await generate(seed); return b64(pub); };
+})();
+</script>
+</body>
+</html>

@@ -20,7 +20,8 @@
   .step { display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-top:.5px solid var(--sep); }
   .step:first-of-type { border-top:0; }
   .n { flex:0 0 26px; height:26px; border-radius:50%; background:var(--blue); color:#fff; font-weight:700; font-size:13px; display:inline-flex; align-items:center; justify-content:center; margin-top:1px; }
-  .step b { display:block; font-size:15px; }
+  .step b.h { display:block; font-size:15px; }
+  .step span b { font-weight:600; color:var(--label); }
   .step span { font-size:14px; color:var(--label-2); }
   .btn { appearance:none; border:0; background:var(--blue); color:#fff; font:inherit; font-weight:600; font-size:17px; padding:12px 20px; border-radius:12px; cursor:pointer; width:100%; }
   .btn:active { opacity:.85; }
@@ -60,20 +61,20 @@
 
   <div class="card">
     <h2>Then, in Robinhood</h2>
-    <div class="step"><i class="n">1</i><div><b>Open the API page</b><span>On the web: <a href="https://robinhood.com/account/crypto" target="_blank" rel="noopener">robinhood.com/account/crypto</a> → scroll to <b>API Trading</b> → <b>Add API key</b>. In the app: Account → Crypto → API. Two-factor authentication must be on.</span></div></div>
-    <div class="step"><i class="n">2</i><div><b>Name it</b><span>Something like <b>Portfolio monitor (read-only)</b>.</span></div></div>
-    <div class="step"><i class="n">3</i><div><b>Paste the public key</b><span>Use the Copy button above and paste into the <b>Public key</b> field.</span></div></div>
-    <div class="step"><i class="n">4</i><div><b>Permissions: read only</b><span>Tick the read options (account, holdings, orders, market data). Leave every <b>order placement / trading</b> permission unticked. This dashboard never trades.</span></div></div>
-    <div class="step"><i class="n">5</i><div><b>Skip IP allow-list, set no expiry (or one year)</b><span>GitHub's runners use changing IP addresses, so an allow-list would block the daily job.</span></div></div>
-    <div class="step"><i class="n">6</i><div><b>Approve and copy the API key</b><span>Robinhood may ask you to confirm in the app. It then shows an <b>API key</b> string. Copy it.</span></div></div>
+    <div class="step"><i class="n">1</i><div><b class="h">Open the API page</b><span>On the web: <a href="https://robinhood.com/account/crypto" target="_blank" rel="noopener">robinhood.com/account/crypto</a> → scroll to <b>API Trading</b> → <b>Add API key</b>. In the app: Account → Crypto → API. Two-factor authentication must be on.</span></div></div>
+    <div class="step"><i class="n">2</i><div><b class="h">Name it</b><span>Something like <b>Portfolio monitor (read-only)</b>.</span></div></div>
+    <div class="step"><i class="n">3</i><div><b class="h">Paste the public key</b><span>Use the Copy button above and paste into the <b>Public key</b> field.</span></div></div>
+    <div class="step"><i class="n">4</i><div><b class="h">Permissions: read only</b><span>Tick the read options (account, holdings, orders, market data). Leave every <b>order placement / trading</b> permission unticked. This dashboard never trades.</span></div></div>
+    <div class="step"><i class="n">5</i><div><b class="h">Skip IP allow-list, set no expiry (or one year)</b><span>GitHub's runners use changing IP addresses, so an allow-list would block the daily job.</span></div></div>
+    <div class="step"><i class="n">6</i><div><b class="h">Approve and copy the API key</b><span>Robinhood may ask you to confirm in the app. It then shows an <b>API key</b> string. Copy it.</span></div></div>
   </div>
 
   <div class="card">
     <h2>Finally, in GitHub</h2>
-    <div class="step"><i class="n">7</i><div><b>Open repository secrets</b><span><a href="https://github.com/lowryat/Lowryat.github.io/settings/secrets/actions" target="_blank" rel="noopener">github.com/lowryat/Lowryat.github.io/settings/secrets/actions</a></span></div></div>
-    <div class="step"><i class="n">8</i><div><b>New repository secret → <code>ROBINHOOD_API_KEY</code></b><span>Value: the API key string Robinhood showed in step 6.</span></div></div>
-    <div class="step"><i class="n">9</i><div><b>New repository secret → <code>ROBINHOOD_PRIVATE_KEY</code></b><span>Value: the private key from this page.</span></div></div>
-    <div class="step"><i class="n">10</i><div><b>Run the job</b><span><a href="https://github.com/lowryat/Lowryat.github.io/actions/workflows/portfolio-daily.yml" target="_blank" rel="noopener">Actions → portfolio-daily → Run workflow</a>, then check that the "Verify credentials" step prints <code>[robinhood] OK</code>.</span></div></div>
+    <div class="step"><i class="n">7</i><div><b class="h">Open repository secrets</b><span><a href="https://github.com/lowryat/Lowryat.github.io/settings/secrets/actions" target="_blank" rel="noopener">github.com/lowryat/Lowryat.github.io/settings/secrets/actions</a></span></div></div>
+    <div class="step"><i class="n">8</i><div><b class="h">New repository secret → <code>ROBINHOOD_API_KEY</code></b><span>Value: the API key string Robinhood showed in step 6.</span></div></div>
+    <div class="step"><i class="n">9</i><div><b class="h">New repository secret → <code>ROBINHOOD_PRIVATE_KEY</code></b><span>Value: the private key from this page.</span></div></div>
+    <div class="step"><i class="n">10</i><div><b class="h">Run the job</b><span><a href="https://github.com/lowryat/Lowryat.github.io/actions/workflows/portfolio-daily.yml" target="_blank" rel="noopener">Actions → portfolio-daily → Run workflow</a>, then check that the "Verify credentials" step prints <code>[robinhood] OK</code>.</span></div></div>
   </div>
 
   <div class="card">

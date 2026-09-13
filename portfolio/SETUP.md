@@ -30,18 +30,28 @@ The API key requires Awaken's whale plan. If you can't create one, the app
 still works from Robinhood alone (section 2) with FIFO lots rebuilt from
 your order history.
 
-## 2. Robinhood (holdings, buying power, fills) — 5 minutes
+## 2. Robinhood (holdings, buying power, fills) — 10 minutes
 
-1. In the Robinhood app: **Account → Crypto → API** (or
-   robinhood.com/account/crypto → API trading). Generate an Ed25519 key
-   pair. Robinhood's docs show a short Python snippet that prints the
-   base64 private key and public key; paste the public key into Robinhood.
-2. When choosing permissions, grant **read-only** scopes (account,
-   holdings, orders read). Do not grant order placement — this app never
-   needs it, and the trading bot in `tradingbot/` uses its own key.
-3. Add secrets:
-   - `ROBINHOOD_API_KEY` = the API key string
-   - `ROBINHOOD_PRIVATE_KEY` = the base64 private key seed
+Robinhood's crypto API uses a key *pair*: you give Robinhood a public key
+and keep the matching private key. You don't need to understand this; a
+page makes both for you.
+
+1. Open **https://lowryat.github.io/portfolio/keygen.html** and press
+   **Generate key pair**. Keep the tab open. (Terminal alternative: run
+   `curl -sL https://raw.githubusercontent.com/lowryat/Lowryat.github.io/main/scripts/make_robinhood_key.py | python3`.)
+2. In Robinhood on the web go to **robinhood.com/account/crypto → API
+   Trading → Add API key** (app: Account → Crypto → API). Two-factor auth
+   must be on.
+3. Name the key, paste the **public** key from step 1, and tick only the
+   **read** permissions (account, holdings, orders, market data). Leave
+   order placement unticked. Skip the IP allow-list: GitHub's runners use
+   changing addresses.
+4. Approve (Robinhood may prompt in the app). Copy the **API key** string it
+   shows you.
+5. Add two repository secrets at
+   https://github.com/lowryat/Lowryat.github.io/settings/secrets/actions:
+   - `ROBINHOOD_API_KEY` = the API key string from step 4
+   - `ROBINHOOD_PRIVATE_KEY` = the **private** key from step 1
 
 If you already set these secrets for the trading bot you can reuse them, but
 a separate read-only key is safer.

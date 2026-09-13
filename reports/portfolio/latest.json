@@ -1,16 +1,16 @@
 {
  "version": 1,
- "generated_at": "2026-09-13T05:34:41+00:00",
+ "generated_at": "2026-09-13T20:23:39+00:00",
  "as_of": "2026-09-13",
  "demo": true,
  "sources": {
   "awaken": {
    "mode": "demo",
-   "detail": "--demo"
+   "detail": "AWAKEN_API_KEY not set"
   },
   "robinhood": {
    "mode": "demo",
-   "detail": "--demo"
+   "detail": "ROBINHOOD_API_KEY / ROBINHOOD_PRIVATE_KEY not set"
   },
   "prices": {
    "mode": "demo",

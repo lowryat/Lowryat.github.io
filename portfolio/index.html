@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Portfolio">
+<title>Portfolio · Crypto tax &amp; profit-taking analytics</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23007AFF'/%3E%3Cpath d='M14 42l12-12 8 8 16-16' fill='none' stroke='%23fff' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+</head>
+<body>
+<nav class="nav" id="nav" aria-label="Portfolio">
+  <div class="nav-inner">
+    <div class="nav-side"><span class="pill" style="background:transparent;color:var(--label-2);padding-left:0">Read-only</span></div>
+    <div class="nav-title">Portfolio</div>
+    <div class="nav-side right">
+      <button class="icon-btn" id="themeBtn" aria-label="Toggle appearance"></button>
+      <button class="icon-btn" id="settingsBtn" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<main class="page">
+  <header class="header">
+    <div>
+      <h1 class="large-title">Portfolio</h1>
+      <div class="sub subhead secondary" id="asOf">Loading…</div>
+    </div>
+    <div id="sourcePills" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+  </header>
+
+  <div id="status"></div>
+
+  <div class="tabs">
+    <div class="segmented" id="tabs" role="tablist" aria-label="Sections">
+      <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+      <button role="tab" data-tab="tax" aria-selected="false">Tax</button>
+      <button role="tab" data-tab="signals" aria-selected="false">Signals</button>
+      <button role="tab" data-tab="holdings" aria-selected="false">Holdings</button>
+    </div>
+    <a class="footnote" href="https://github.com/lowryat/lowryat.github.io/blob/main/portfolio/SETUP.md">Setup guide</a>
+  </div>
+
+  <section id="main" aria-live="polite"><div class="empty"><span class="spinner" aria-hidden="true"></span></div></section>
+
+  <footer class="footer" id="footer"></footer>
+</main>
+
+<div class="sheet-backdrop" id="backdrop"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" aria-hidden="true">
+  <div class="grabber" aria-hidden="true"></div>
+  <div class="sheet-h">
+    <button class="text-btn" id="sheetCancel">Cancel</button>
+    <h2 class="title-3" id="sheetTitle">Settings</h2>
+    <button class="text-btn bold" id="sheetDone">Done</button>
+  </div>
+  <div id="sheetBody"></div>
+</div>
+
+<script src="analytics.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

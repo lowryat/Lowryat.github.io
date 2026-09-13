@@ -1,0 +1,89 @@
+name: portfolio-daily
+
+# Read-only crypto portfolio analytics: pulls Awaken tax lots + Robinhood
+# holdings, computes tax-loss-harvest / profit-taking insights, writes
+# reports/portfolio/latest.json for the dashboard at /portfolio/, and sends a
+# push alert (ntfy) when something is worth acting on. It never places orders.
+#
+# Secrets (all optional -- with none set it publishes the demo dataset):
+#   AWAKEN_API_KEY          Read key from awaken.tax -> Settings -> API Keys
+#   AWAKEN_CLIENT_ID        optional; auto-discovered from the key if omitted
+#   ROBINHOOD_API_KEY       Robinhood crypto API key (READ scopes only)
+#   ROBINHOOD_PRIVATE_KEY   base64 Ed25519 private key seed
+#   NTFY_TOPIC / NTFY_SERVER, TWILIO_*   same notification plumbing as tradingbot
+# Variables:
+#   PORTFOLIO_ALERT_MIN_USD (default 250), PORTFOLIO_ALERT_COOLDOWN_DAYS (default 7)
+
+on:
+  schedule:
+    # Daily at 13:10 UTC (after Awaken's overnight pricing refresh; ~6am PT).
+    - cron: "10 13 * * *"
+  workflow_dispatch:
+    inputs:
+      demo:
+        description: "Force the demo dataset (ignore credentials)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: portfolio-daily
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Verify credentials (non-fatal)
+        env:
+          AWAKEN_API_KEY: ${{ secrets.AWAKEN_API_KEY }}
+          AWAKEN_CLIENT_ID: ${{ secrets.AWAKEN_CLIENT_ID }}
+          ROBINHOOD_API_KEY: ${{ secrets.ROBINHOOD_API_KEY }}
+          ROBINHOOD_PRIVATE_KEY: ${{ secrets.ROBINHOOD_PRIVATE_KEY }}
+        run: python -m portfolio_analytics check || echo "::warning::one or more credential checks failed; snapshot will fall back where needed"
+
+      - name: Build snapshot and send alerts
+        env:
+          AWAKEN_API_KEY: ${{ secrets.AWAKEN_API_KEY }}
+          AWAKEN_CLIENT_ID: ${{ secrets.AWAKEN_CLIENT_ID }}
+          ROBINHOOD_API_KEY: ${{ secrets.ROBINHOOD_API_KEY }}
+          ROBINHOOD_PRIVATE_KEY: ${{ secrets.ROBINHOOD_PRIVATE_KEY }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
+          TWILIO_TO: ${{ secrets.TWILIO_TO }}
+          PORTFOLIO_ALERT_MIN_USD: ${{ vars.PORTFOLIO_ALERT_MIN_USD }}
+          PORTFOLIO_ALERT_COOLDOWN_DAYS: ${{ vars.PORTFOLIO_ALERT_COOLDOWN_DAYS }}
+        run: |
+          if [ "${{ inputs.demo }}" = "true" ]; then
+            python -m portfolio_analytics snapshot --demo
+          else
+            python -m portfolio_analytics snapshot
+          fi
+
+      - name: Commit snapshot
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/portfolio/
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "portfolio: daily snapshot $(date -u +%F)"
+            git pull --rebase origin "${GITHUB_REF_NAME}" || true
+            git push
+          fi

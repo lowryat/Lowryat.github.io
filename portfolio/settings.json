@@ -1,0 +1,16 @@
+{
+  "short_term_rate": 0.35,
+  "long_term_rate": 0.20,
+  "state_rate": 0.0,
+  "niit_rate": 0.038,
+  "long_term_days": 365,
+  "ordinary_income_offset": 3000,
+  "min_harvest_loss": 250,
+  "min_harvest_loss_pct": 0.05,
+  "profit_take_gain_pct": 0.5,
+  "max_weight": 0.35,
+  "target_weight": 0.25,
+  "trailing_dd_pct": 0.15,
+  "long_term_wait_days": 45,
+  "wash_sale_conservative": false
+}

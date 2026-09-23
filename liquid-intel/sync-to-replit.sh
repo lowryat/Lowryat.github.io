@@ -125,11 +125,9 @@ if [[ $VERIFY -eq 1 ]]; then
   echo "Typechecking ..."
   npx tsc --noEmit
   echo "Running fast tests (no database needed) ..."
+  # Database tests are left out on purpose: they create temporary databases on
+  # whatever DATABASE_URL points at, which in a Repl is the production database.
   npx tsx --test server/resilience.test.ts server/http-client.test.ts server/sms.test.ts server/daily-history.test.ts shared/quant/quant.test.ts
-  if [[ -n "${DATABASE_URL:-}" ]]; then
-    echo "Running database tests in a temporary database ..."
-    npx tsx --test server/persistence.test.ts server/analysis-alerts.test.ts
-  fi
 fi
 
 cat <<'EOF'

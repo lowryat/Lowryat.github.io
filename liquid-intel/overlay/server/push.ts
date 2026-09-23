@@ -60,7 +60,6 @@ export async function sendPush(
   stats.attempts += 1;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PUSH_TIMEOUT_MS);
-  timer.unref?.();
   try {
     const fetcher = options.fetcher ?? fetch;
     const response = await fetcher(`${server}/`, {

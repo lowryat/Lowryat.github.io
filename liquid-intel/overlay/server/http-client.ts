@@ -235,6 +235,10 @@ export class HttpClient {
       }
 
       const acquired = await this.acquire(state, options.signal, options.deadlineAt, options.priority ?? "normal");
+      if (acquired === "rate_limited") {
+        const seconds = Math.ceil(Math.max(0, state.cooldownUntil - this.now()) / 1000);
+        return this.fail(state, "rate_limited", `${host} is cooling down after HTTP 429; next request allowed in ${seconds}s`, startedAt, attempts, 429, false);
+      }
       if (acquired !== "ok") {
         return this.fail(state, acquired, acquired === "deadline" ? "Caller deadline reached while waiting for the host rate limit" : "Request cancelled", startedAt, attempts, undefined, false);
       }
@@ -307,7 +311,7 @@ export class HttpClient {
       }
     }
 
-    const failure = last ?? { kind: "network" as const, error: "Request failed", retryable: false };
+    const failure: Extract<AttemptResult, { ok: false }> = last ?? { ok: false, kind: "network", error: "Request failed", retryable: false };
     state.counters.failures += 1;
     return {
       ok: false,
@@ -359,7 +363,7 @@ export class HttpClient {
     signal: AbortSignal | undefined,
     deadlineAt: number | undefined,
     priority: "high" | "normal",
-  ): Promise<"ok" | "deadline" | "aborted"> {
+  ): Promise<"ok" | "deadline" | "aborted" | "rate_limited"> {
     const ticket = {};
     if (priority === "high") {
       // Behind other high-priority tickets, ahead of every normal one.
@@ -375,6 +379,13 @@ export class HttpClient {
         if (signal?.aborted) return "aborted";
         const now = this.now();
         if (deadlineAt != null && now >= deadlineAt) return "deadline";
+        // During a 429 cooldown, fail fast unless the wait is short enough for
+        // this host's policy and ends before the caller's deadline. Queueing a
+        // live sweep behind a 60s cooldown would only burn its deadline.
+        const cooldownLeft = state.cooldownUntil - now;
+        if (cooldownLeft > 0 && (cooldownLeft > state.policy.maxRetryAfterWaitMs || (deadlineAt != null && state.cooldownUntil >= deadlineAt))) {
+          return "rate_limited";
+        }
         const atHead = state.queue[0] === ticket;
         const readyAt = Math.max(state.nextAllowedAt, state.cooldownUntil);
         if (atHead && state.active < state.policy.maxConcurrent && now >= readyAt) {
@@ -401,7 +412,6 @@ export class HttpClient {
   private async attempt<T>(url: string, options: RequestOptions<T>, policy: HostPolicy): Promise<AttemptResult> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(new Error("timeout")), policy.timeoutMs);
-    timer.unref?.();
     const onExternalAbort = () => controller.abort(options.signal?.reason ?? new Error("aborted"));
     options.signal?.addEventListener("abort", onExternalAbort, { once: true });
     try {

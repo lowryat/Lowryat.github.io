@@ -252,12 +252,15 @@ const GSM_REPLACEMENTS: Array<[RegExp, string]> = [
  * character forces UCS-2 encoding for the whole message, cutting each segment
  * from 160 to 70 characters and tripling cost; emoji are removed outright.
  */
+// Built at runtime: the project compiles with an ES5 target that rejects the /u literal.
+const PICTOGRAPHIC = new RegExp("\\p{Extended_Pictographic}", "gu");
+
 export function normalizeSmsText(body: string): string {
   let text = body;
   for (const [pattern, replacement] of GSM_REPLACEMENTS) text = text.replace(pattern, replacement);
   text = text
-    .replace(/\p{Extended_Pictographic}/gu, "")
-    .replace(/[​-‍︎️]/g, "")
+    .replace(PICTOGRAPHIC, "")
+    .replace(/[\u200B-\u200D\uFE0E\uFE0F]/g, "")
     .replace(/[ \t]{2,}/g, " ")
     .trim();
   return text.length > 1600 ? `${text.slice(0, 1597)}...` : text;
@@ -388,7 +391,6 @@ export async function sendSms(to: string, body: string, options: SendSmsOptions 
   for (const pathName of plan) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    timer.unref?.();
     try {
       last = await sendVia(pathName, to, text, controller.signal);
     } catch {
@@ -532,7 +534,6 @@ export async function diagnoseSmsProvider(): Promise<SmsDiagnosticCheck[]> {
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SMS_REQUEST_TIMEOUT_MS);
-  timeout.unref?.();
   try {
     if (plan[0] === "legacy") {
       const transport = legacyTransport()!;

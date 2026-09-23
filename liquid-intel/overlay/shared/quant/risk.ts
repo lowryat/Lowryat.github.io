@@ -393,7 +393,7 @@ export function simulatePaths(model: RiskModel, params: RiskParams, paths = 1000
   });
   const sortedDrawdowns = drawdowns.sort();
   let over20 = 0;
-  for (const value of sortedDrawdowns) if (value > 0.2) over20 += 1;
+  for (let index = 0; index < sortedDrawdowns.length; index += 1) if (sortedDrawdowns[index] > 0.2) over20 += 1;
   return {
     bands,
     maxDrawdown: { median: quantileSorted(sortedDrawdowns, 0.5), p95: quantileSorted(sortedDrawdowns, 0.95), probOver20: over20 / paths },

@@ -20,7 +20,6 @@ export function withDeadline<T>(promise: Promise<T>, ms: number, label: string):
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => reject(new DeadlineError(label, ms)), ms);
-    timer.unref?.();
   });
   return Promise.race([promise, timeout]).finally(() => {
     if (timer) clearTimeout(timer);
@@ -38,7 +37,6 @@ export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
       signal?.removeEventListener("abort", onAbort);
       resolve();
     }, ms);
-    timer.unref?.();
     const onAbort = () => {
       clearTimeout(timer);
       reject(abortError(signal!));
@@ -164,7 +162,6 @@ export class GuardedTask<T> {
     let timer: NodeJS.Timeout | undefined;
     const deadline = new Promise<"timeout">((resolve) => {
       timer = setTimeout(() => resolve("timeout"), this.deadlineMs);
-      timer.unref?.();
     });
 
     let result: GuardedRunResult<T>;

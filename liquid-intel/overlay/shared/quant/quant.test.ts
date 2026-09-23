@@ -109,6 +109,17 @@ test("scenario analysis returns a probability-weighted expected value", () => {
   assert.ok(analysis.mixture.var95 > 0);
 });
 
+test("centered scenarios keep the historical spread around the simulation's own BTC assumption", () => {
+  const raw = calibrateScenarios(model, 30);
+  const centered = calibrateScenarios(model, 30, "transition", 0);
+  const base = centered.find((scenario) => scenario.id === "base")!;
+  assert.ok(Math.abs(base.btcMove) < 1e-9);
+  const spread = (list: typeof raw) => Math.log(1 + list[0].btcMove) - Math.log(1 + list[2].btcMove);
+  assert.ok(Math.abs(spread(raw) - spread(centered)) < 1e-9);
+  const view = calibrateScenarios(model, 30, "transition", 0.1).find((scenario) => scenario.id === "base")!;
+  assert.ok(Math.abs(view.btcMove - 0.1) < 1e-9);
+});
+
 test("de-risking lowers tail risk in the strategy comparison", () => {
   const scenarios = calibrateScenarios(model, 30);
   const results = compareStrategies(model, base, scenarios, buildStrategies(model, base.weights), 2000);

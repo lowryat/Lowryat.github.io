@@ -1,7 +1,10 @@
 import type { Express } from "express";
 import { computeMarketStructure, type DailyPanel, type MarketStructure } from "@shared/quant/structure";
 import { stablecoinElasticity } from "@shared/quant/risk";
+import type { RiskLabModel } from "@shared/quant/api-types";
 import { DAILY_SYMBOLS, getDailyHistoryStatus, getDailyHistoryVersion, getDailyPanel, startDailyHistory } from "./daily-history";
+
+export type { RiskLabModel };
 
 /**
  * Read-only analytics endpoints. The server prepares validated, aligned daily
@@ -17,22 +20,6 @@ const DEFAULT_PORTFOLIO: Record<string, number> = { BTC: 0.4, ETH: 0.25, SOL: 0.
 
 let structureCache: { version: number; structure: MarketStructure } | null = null;
 const modelCache = new Map<string, { version: number; body: RiskLabModel }>();
-
-export type RiskLabModel = {
-  asOf: string;
-  lookbackDays: number;
-  symbols: string[];
-  /** Date of each return (the close it ends on). */
-  dates: string[];
-  /** Aligned daily log returns, one array per symbol, oldest first. */
-  returns: number[][];
-  prices: number[];
-  excluded: Array<{ symbol: string; reason: string }>;
-  defaultWeights: number[];
-  regime: MarketStructure["regime"]["trend"];
-  stablecoinElasticity: { slope: number; r2: number; tStat: number; n: number } | null;
-  sources: Record<string, string | null>;
-};
 
 function trailingContiguous(series: Array<number | null>): number {
   let count = 0;

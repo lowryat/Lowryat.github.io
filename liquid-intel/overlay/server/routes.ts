@@ -395,7 +395,15 @@ export async function registerRoutes(
     }
   });
 
+  let testPushWindow = Date.now();
+  let testPushRequests = 0;
   app.post("/api/alerts/test-push", async (req, res) => {
+    if (!isSameOriginMutation(req)) return res.status(403).json({ message: "Same-origin request required" });
+    if (Date.now() - testPushWindow > 60_000) {
+      testPushWindow = Date.now();
+      testPushRequests = 0;
+    }
+    if (++testPushRequests > 3) return res.status(429).json({ message: "Test pushes are limited to three per minute." });
     const parsed = testPushSchema.safeParse(req.body ?? {});
     if (!parsed.success) return res.status(400).json({ message: parsed.error.issues[0]?.message || "Invalid test message" });
     const result = await sendPush("LIQ-INTEL test", parsed.data.message || "Push notifications are working.", { priority: "default" });

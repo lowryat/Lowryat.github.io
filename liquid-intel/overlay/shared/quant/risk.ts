@@ -430,18 +430,29 @@ export function rollingHorizonReturns(dailyLogReturns: readonly number[], horizo
 }
 
 /**
- * Four economic environments calibrated to the benchmark's own history over
- * this horizon, with probabilities tilted by the current trend regime.
+ * Four economic environments shaped by the benchmark's own history over this
+ * horizon, with probabilities tilted by the current trend regime.
+ *
+ * With `center`, the historical distribution keeps its shape and spread but is
+ * re-centered so the base case equals `center` (the same median benchmark move
+ * the Monte Carlo assumes). Without it, raw historical percentiles are used,
+ * which silently carry the lookback window's trend into every scenario.
  */
 export function calibrateScenarios(
   model: RiskModel,
   horizonDays: number,
   regime: "bull" | "bear" | "transition" = "transition",
+  center?: number,
 ): Scenario[] {
   const history = rollingHorizonReturns(model.benchmarkReturns, horizonDays).sort((a, b) => a - b);
   const scale = Math.sqrt(horizonDays / 30);
   const fallback = (p: number) => ({ 0.8: 0.12, 0.5: 0.0, 0.2: -0.12, 0.03: -0.3 } as Record<number, number>)[p] * scale;
-  const move = (p: number) => (history.length >= 60 ? Math.exp(quantileSorted(history, p)) - 1 : fallback(p));
+  const median = history.length >= 60 ? quantileSorted(history, 0.5) : 0;
+  const anchor = center != null && Number.isFinite(center) ? Math.log(Math.max(1e-6, 1 + center)) : null;
+  const move = (p: number) => {
+    const logMove = history.length >= 60 ? quantileSorted(history, p) : Math.log(1 + fallback(p));
+    return Math.exp(anchor == null ? logMove : logMove - median + anchor) - 1;
+  };
   const tilt = regime === "bull" ? 0.05 : regime === "bear" ? -0.05 : 0;
   return [
     { id: "bull", name: "Risk-on expansion", description: "Liquidity and momentum broaden; alts outperform with higher beta.", probability: 0.25 + tilt, btcMove: move(0.8), altBeta: 1.2, altDrift: 0, volMultiplier: 1, corrStress: 0.1 },

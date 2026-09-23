@@ -397,11 +397,13 @@ export function buildInsights(structure: MarketStructure): Insight[] {
   if (liquidity.stablecoinImpulseZ != null && Math.abs(liquidity.stablecoinImpulseZ) >= 1 && liquidity.stablecoinChange30dPct != null) {
     const expanding = liquidity.stablecoinImpulseZ > 0;
     const evidence = liquidity.conditional && expanding
-      ? ` In this history, similar expansions were followed by an average BTC 30-day return of ${pct(liquidity.conditional.avgForward30)} versus ${pct(liquidity.conditional.baseline30)} on all days (n=${liquidity.conditional.n}).`
+      ? ` In this history, similar expansions were followed by an average BTC 30-day return of ${pct(liquidity.conditional.avgForward30)} versus ${pct(liquidity.conditional.baseline30)} on all days (${liquidity.conditional.n} overlapping days, so treat as indicative).`
       : "";
+    // Do not color an expansion bullish when this history says it was followed by weaker returns.
+    const contradicted = expanding && liquidity.conditional != null && liquidity.conditional.avgForward30 < liquidity.conditional.baseline30;
     insights.push({
       id: "stablecoin-impulse",
-      tone: expanding ? "bull" : "bear",
+      tone: contradicted ? "neutral" : expanding ? "bull" : "bear",
       title: `Stablecoin supply ${expanding ? "expanding" : "contracting"} ${pct(liquidity.stablecoinChange30dPct)} in 30 days`,
       detail: `That is ${Math.abs(liquidity.stablecoinImpulseZ).toFixed(1)} standard deviations ${expanding ? "above" : "below"} the 1-year norm for 30-day changes.${evidence}`,
     });

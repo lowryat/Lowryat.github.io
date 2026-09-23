@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<!--
+    THIS IS A TEMPLATE THAT SHOULD BE USED EVERY TIME AND MODIFIED.
+    WHAT TO KEEP:
+    ✓ Overall structure (header, sidebar, main content)
+    ✓ Anthropic branding (colors, fonts, layout)
+    ✓ Seed navigation section (always include this)
+    ✓ Self-contained artifact (everything inline)
+
+    WHAT TO CREATIVELY EDIT:
+    ✗ The p5.js algorithm (implement YOUR vision)
+    ✗ The parameters (define what YOUR art needs)
+    ✗ The UI controls (match YOUR parameters)
+
+    Let your philosophy guide the implementation.
+    The world is your oyster - be creative!
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Probability Tides</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* Anthropic Brand Colors */
+        :root {
+            --anthropic-dark: #141413;
+            --anthropic-light: #faf9f5;
+            --anthropic-mid-gray: #b0aea5;
+            --anthropic-light-gray: #e8e6dc;
+            --anthropic-orange: #d97757;
+            --anthropic-blue: #6a9bcc;
+            --anthropic-green: #788c5d;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, var(--anthropic-light) 0%, #f5f3ee 100%);
+            min-height: 100vh;
+            color: var(--anthropic-dark);
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 320px;
+            flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(20, 20, 19, 0.1);
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .sidebar h1 {
+            font-family: 'Lora', serif;
+            font-size: 24px;
+            font-weight: 500;
+            color: var(--anthropic-dark);
+            margin-bottom: 8px;
+        }
+
+        .sidebar .subtitle {
+            color: var(--anthropic-mid-gray);
+            font-size: 14px;
+            margin-bottom: 32px;
+            line-height: 1.4;
+        }
+
+        /* Control Sections */
+        .control-section {
+            margin-bottom: 32px;
+        }
+
+        .control-section h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--anthropic-dark);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-section h3::before {
+            content: '•';
+            color: var(--anthropic-orange);
+            font-weight: bold;
+        }
+
+        /* Seed Controls */
+        .seed-input {
+            width: 100%;
+            background: var(--anthropic-light);
+            padding: 12px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin-bottom: 12px;
+            border: 1px solid var(--anthropic-light-gray);
+            text-align: center;
+        }
+
+        .seed-input:focus {
+            outline: none;
+            border-color: var(--anthropic-orange);
+            box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.1);
+            background: white;
+        }
+
+        .seed-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .regen-button {
+            margin-bottom: 0;
+        }
+
+        /* Parameter Controls */
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--anthropic-dark);
+            margin-bottom: 8px;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .slider-container input[type="range"] {
+            flex: 1;
+            height: 4px;
+            background: var(--anthropic-light-gray);
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--anthropic-orange);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .slider-container input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+            background: #c86641;
+        }
+
+        .slider-container input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: var(--anthropic-orange);
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .value-display {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: var(--anthropic-mid-gray);
+            min-width: 60px;
+            text-align: right;
+        }
+
+        /* Color Pickers */
+        .color-group {
+            margin-bottom: 16px;
+        }
+
+        .color-group label {
+            display: block;
+            font-size: 12px;
+            color: var(--anthropic-mid-gray);
+            margin-bottom: 4px;
+        }
+
+        .color-picker-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .color-picker-container input[type="color"] {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            background: none;
+            padding: 0;
+        }
+
+        .color-value {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: var(--anthropic-mid-gray);
+        }
+
+        /* Buttons */
+        .button {
+            background: var(--anthropic-orange);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+        }
+
+        .button:hover {
+            background: #c86641;
+            transform: translateY(-1px);
+        }
+
+        .button:active {
+            transform: translateY(0);
+        }
+
+        .button.secondary {
+            background: var(--anthropic-blue);
+        }
+
+        .button.secondary:hover {
+            background: #5a8bb8;
+        }
+
+        .button.tertiary {
+            background: var(--anthropic-green);
+        }
+
+        .button.tertiary:hover {
+            background: #6b7b52;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .button-row .button {
+            flex: 1;
+        }
+
+        /* Canvas Area */
+        .canvas-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 0;
+        }
+
+        #canvas-container {
+            width: 100%;
+            max-width: 1000px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(20, 20, 19, 0.1);
+            background: white;
+        }
+
+        #canvas-container canvas {
+            display: block;
+            width: 100% !important;
+            height: auto !important;
+        }
+
+        /* Loading State */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: var(--anthropic-mid-gray);
+        }
+
+        /* Responsive - Stack on mobile */
+        @media (max-width: 600px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+            }
+
+            .canvas-area {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Control Sidebar -->
+        <div class="sidebar">
+            <!-- Headers (CUSTOMIZE THIS FOR YOUR ART) -->
+            <h1>Probability Tides</h1>
+            <div class="subtitle">Thousands of correlated, fat-tailed futures drawn as ink. Every seed is a different market obeying the same laws.</div>
+
+            <!-- Seed Section (ALWAYS KEEP THIS) -->
+            <div class="control-section">
+                <h3>Seed</h3>
+                <input type="number" id="seed-input" class="seed-input" value="12345" onchange="updateSeed()">
+                <div class="seed-controls">
+                    <button class="button secondary" onclick="previousSeed()">← Prev</button>
+                    <button class="button secondary" onclick="nextSeed()">Next →</button>
+                </div>
+                <button class="button tertiary regen-button" onclick="randomSeedAndUpdate()">↻ Random</button>
+            </div>
+
+            <!-- Parameters Section (CUSTOMIZE THIS FOR YOUR ART) -->
+            <div class="control-section">
+                <h3>Parameters</h3>
+
+                <div class="control-group">
+                    <label>Futures (paths)</label>
+                    <div class="slider-container">
+                        <input type="range" id="paths" min="500" max="6000" step="100" value="2400" oninput="updateParam('paths', this.value)">
+                        <span class="value-display" id="paths-value">2400</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Horizon (steps)</label>
+                    <div class="slider-container">
+                        <input type="range" id="steps" min="60" max="360" step="10" value="200" oninput="updateParam('steps', this.value)">
+                        <span class="value-display" id="steps-value">200</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Volatility</label>
+                    <div class="slider-container">
+                        <input type="range" id="volatility" min="0.4" max="2.0" step="0.05" value="1" oninput="updateParam('volatility', this.value)">
+                        <span class="value-display" id="volatility-value">1</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Tide coupling</label>
+                    <div class="slider-container">
+                        <input type="range" id="coupling" min="0" max="0.95" step="0.05" value="0.55" oninput="updateParam('coupling', this.value)">
+                        <span class="value-display" id="coupling-value">0.55</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Tail thinness (t d.o.f.)</label>
+                    <div class="slider-container">
+                        <input type="range" id="tails" min="3" max="30" step="1" value="5" oninput="updateParam('tails', this.value)">
+                        <span class="value-display" id="tails-value">5</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Current strength</label>
+                    <div class="slider-container">
+                        <input type="range" id="current" min="0" max="3" step="0.1" value="1" oninput="updateParam('current', this.value)">
+                        <span class="value-display" id="current-value">1</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Ink density</label>
+                    <div class="slider-container">
+                        <input type="range" id="ink" min="2" max="40" step="1" value="11" oninput="updateParam('ink', this.value)">
+                        <span class="value-display" id="ink-value">11</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Contour opacity</label>
+                    <div class="slider-container">
+                        <input type="range" id="contours" min="0" max="100" step="5" value="60" oninput="updateParam('contours', this.value)">
+                        <span class="value-display" id="contours-value">60</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Colors Section (OPTIONAL - CUSTOMIZE OR REMOVE) -->
+            <div class="control-section">
+                <h3>Colors</h3>
+
+                <div class="color-group">
+                    <label>Worst endings</label>
+                    <div class="color-picker-container">
+                        <input type="color" id="color1" value="#d97757" onchange="updateColor('color1', this.value)">
+                        <span class="color-value" id="color1-value">#d97757</span>
+                    </div>
+                </div>
+
+                <div class="color-group">
+                    <label>Best endings</label>
+                    <div class="color-picker-container">
+                        <input type="color" id="color2" value="#6a9bcc" onchange="updateColor('color2', this.value)">
+                        <span class="color-value" id="color2-value">#6a9bcc</span>
+                    </div>
+                </div>
+
+                <div class="color-group">
+                    <label>The ordinary middle</label>
+                    <div class="color-picker-container">
+                        <input type="color" id="color3" value="#788c5d" onchange="updateColor('color3', this.value)">
+                        <span class="color-value" id="color3-value">#788c5d</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions Section (ALWAYS KEEP THIS) -->
+            <div class="control-section">
+                <h3>Actions</h3>
+                <div class="button-row" style="margin-bottom: 8px;">
+                    <button class="button" onclick="initializeSystem()">↻ Regenerate</button>
+                    <button class="button" onclick="resetParameters()">Reset</button>
+                </div>
+                <button class="button secondary" onclick="downloadPng()">↓ Download PNG</button>
+            </div>
+        </div>
+
+        <!-- Main Canvas Area -->
+        <div class="canvas-area">
+            <div id="canvas-container">
+                <div class="loading">Initializing generative art...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ═══════════════════════════════════════════════════════════════════════
+        // GENERATIVE ART PARAMETERS - CUSTOMIZE FOR YOUR ALGORITHM
+        // ═══════════════════════════════════════════════════════════════════════
+
+        let params = {
+            seed: 12345,
+            paths: 2400,        // how many futures are drawn
+            steps: 200,         // how far each future travels
+            volatility: 1,      // scale of every step
+            coupling: 0.55,     // share of each step taken from the common tide
+            tails: 5,           // Student-t degrees of freedom for each path's temperament
+            current: 1,         // strength of the slow, shared drift field
+            ink: 11,            // stroke opacity (0-255)
+            contours: 60,       // opacity of the measured quantile contours (0-100)
+            colorPalette: ['#d97757', '#6a9bcc', '#788c5d']
+        };
+
+        let defaultParams = {...params, colorPalette: [...params.colorPalette]}; // Store defaults for reset
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // P5.JS GENERATIVE ART ALGORITHM - REPLACE WITH YOUR VISION
+        // ═══════════════════════════════════════════════════════════════════════
+
+        const MARGIN_X = 92;
+        const MARGIN_Y = 118;
+        const MEMORY = 0.94;          // turbulence decay per step
+        const SHOCK_WEIGHT = 0.04;    // how strongly one step feeds the next step's turbulence
+        const TEMPERAMENT_CAP = 3;    // no future is more than three times as restless as the calm
+        const QUANTILES = [0.05, 0.25, 0.5, 0.75, 0.95];
+        const TIDE_MEMORY = 0.82;     // the shared tide swells instead of chattering
+        const FADE_IN = 0.14;         // share of the horizon over which each stroke gathers strength
+
+        let sim = null;
+        let drawIndex = 0;
+        let rebuildTimer = null;
+
+        function setup() {
+            let canvas = createCanvas(1200, 1200);
+            canvas.parent('canvas-container');
+            pixelDensity(1);
+
+            initializeSystem();
+
+            // Remove loading message
+            document.querySelector('.loading').style.display = 'none';
+        }
+
+        function initializeSystem() {
+            // Seed the randomness for reproducibility
+            randomSeed(params.seed);
+            noiseSeed(params.seed);
+
+            sim = simulateFutures();
+            drawIndex = 0;
+
+            blendMode(BLEND);
+            background(250, 249, 245); // Anthropic light background
+            layPaperGrain();
+            drawBreakEven();
+            loop();
+        }
+
+        /**
+         * Every future is a random walk that is only partly its own. Each step
+         * mixes a shock shared by all paths (the tide) with a private shock,
+         * rides a slow drift woven from two octaves of noise, and is scaled by
+         * two kinds of restlessness: a temperament drawn once per path from a
+         * scaled inverse chi-square (so tails are heavy), and a turbulence that
+         * remembers recent shocks and decays geometrically (so calm and storm
+         * arrive in clusters).
+         */
+        function simulateFutures() {
+            const P = Math.round(params.paths);
+            const T = Math.round(params.steps);
+            const stride = T + 1;
+            const values = new Float32Array(P * stride);
+            const stepVol = 0.018 * params.volatility * Math.sqrt(200 / T);
+            const tide = Math.sqrt(params.coupling);
+            const own = Math.sqrt(1 - params.coupling);
+            const df = Math.round(params.tails);
+
+            const common = new Float32Array(T);
+            const drift = new Float32Array(T);
+            let swell = randomGaussian();
+            const renew = Math.sqrt(1 - TIDE_MEMORY * TIDE_MEMORY);
+            for (let t = 0; t < T; t++) {
+                // Autocorrelated with unit variance: shared shocks arrive as swells.
+                swell = TIDE_MEMORY * swell + renew * randomGaussian();
+                common[t] = swell;
+                const u = t / T;
+                const weather = noise(u * 2.4, 7.3) * 0.65 + noise(u * 9.0, 19.1) * 0.35;
+                drift[t] = (weather - 0.5) * 0.0055 * params.current * Math.sqrt(200 / T);
+            }
+
+            for (let p = 0; p < P; p++) {
+                let chi = 0;
+                for (let k = 0; k < df; k++) { const g = randomGaussian(); chi += g * g; }
+                const temperament = Math.min(TEMPERAMENT_CAP, Math.sqrt(Math.max(1, df - 2) / Math.max(1e-9, chi)));
+                let v = 0;
+                let turbulence = 1;
+                const base = p * stride;
+                values[base] = 0;
+                for (let t = 0; t < T; t++) {
+                    const z = tide * common[t] + own * randomGaussian();
+                    const sigma = Math.min(4, Math.sqrt(turbulence));
+                    const shock = sigma * z;
+                    v += drift[t] + stepVol * temperament * shock;
+                    // Mean-reverting memory: persistence MEMORY + SHOCK_WEIGHT, long-run level 1.
+                    turbulence = (1 - MEMORY - SHOCK_WEIGHT) + MEMORY * turbulence + SHOCK_WEIGHT * shock * shock;
+                    values[base + t + 1] = v;
+                }
+            }
+
+            // Each path is colored by where it finally arrives.
+            const order = new Int32Array(P);
+            for (let p = 0; p < P; p++) order[p] = p;
+            const byEnding = Array.from(order).sort((a, b) => values[a * stride + T] - values[b * stride + T]);
+            const rank = new Float32Array(P);
+            byEnding.forEach((p, i) => { rank[p] = P > 1 ? i / (P - 1) : 0.5; });
+
+            // Measured contours: quantiles of every column.
+            const bands = QUANTILES.map(() => new Float32Array(stride));
+            const column = new Float32Array(P);
+            let low = Infinity, high = -Infinity;
+            for (let t = 0; t <= T; t++) {
+                for (let p = 0; p < P; p++) column[p] = values[p * stride + t];
+                column.sort();
+                QUANTILES.forEach((q, i) => { bands[i][t] = column[Math.min(P - 1, Math.floor(q * (P - 1)))]; });
+                low = Math.min(low, column[Math.floor(0.004 * (P - 1))]);
+                high = Math.max(high, column[Math.ceil(0.996 * (P - 1))]);
+            }
+
+            // Shuffled drawing order so the tide fills in evenly.
+            for (let i = P - 1; i > 0; i--) {
+                const j = Math.floor(random(i + 1));
+                const swap = order[i]; order[i] = order[j]; order[j] = swap;
+            }
+
+            const center = (low + high) / 2;
+            const half = Math.max(1e-6, (high - low) / 2) * 1.04;
+            return { P, T, stride, values, order, rank, bands, center, half };
+        }
+
+        function xAt(t) {
+            return MARGIN_X + (t / sim.T) * (width - 2 * MARGIN_X);
+        }
+
+        function yAt(v) {
+            return height / 2 - ((v - sim.center) / sim.half) * (height / 2 - MARGIN_Y);
+        }
+
+        function layPaperGrain() {
+            noStroke();
+            for (let i = 0; i < 14000; i++) {
+                fill(20, 20, 19, random(2, 7));
+                const size = random(0.6, 1.4);
+                rect(random(width), random(height), size, size);
+            }
+        }
+
+        function drawBreakEven() {
+            const ctx = drawingContext;
+            ctx.save();
+            ctx.setLineDash([2, 6]);
+            ctx.strokeStyle = 'rgba(20, 20, 19, 0.18)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(MARGIN_X, yAt(0));
+            ctx.lineTo(width - MARGIN_X, yAt(0));
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function hexToRgb(hex) {
+            const n = parseInt(hex.slice(1), 16);
+            return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+        }
+
+        function mix(a, b, t) {
+            return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+        }
+
+        function inkFor(rank) {
+            const loss = hexToRgb(params.colorPalette[0]);
+            const gain = hexToRgb(params.colorPalette[1]);
+            const core = hexToRgb(params.colorPalette[2]);
+            // Ease toward the ends so the middle stays quiet and the extremes speak.
+            const eased = rank < 0.5 ? Math.pow(rank / 0.5, 1.6) : Math.pow((rank - 0.5) / 0.5, 0.625);
+            return rank < 0.5 ? mix(loss, core, eased) : mix(core, gain, eased);
+        }
+
+        function drawFuture(p) {
+            const ctx = drawingContext;
+            const rank = sim.rank[p];
+            const tail = rank < 0.05 || rank > 0.95;
+            const [r, g, b] = inkFor(rank);
+            const alpha = Math.min(1, (params.ink / 255) * (tail ? 1.7 : 1));
+            // Each stroke gathers strength after leaving the origin, so the shared
+            // starting point glows instead of saturating into a blot.
+            const x0 = xAt(0);
+            const gradient = ctx.createLinearGradient(x0, 0, x0 + FADE_IN * (width - 2 * MARGIN_X), 0);
+            gradient.addColorStop(0, `rgba(${r | 0}, ${g | 0}, ${b | 0}, ${alpha * 0.12})`);
+            gradient.addColorStop(1, `rgba(${r | 0}, ${g | 0}, ${b | 0}, ${alpha})`);
+            ctx.strokeStyle = gradient;
+            ctx.lineWidth = tail ? 0.9 : 0.7;
+            ctx.beginPath();
+            const base = p * sim.stride;
+            ctx.moveTo(xAt(0), yAt(sim.values[base]));
+            for (let t = 1; t <= sim.T; t++) ctx.lineTo(xAt(t), yAt(sim.values[base + t]));
+            ctx.stroke();
+        }
+
+        function drawContours() {
+            const strength = params.contours / 100;
+            if (strength <= 0) return;
+            const ctx = drawingContext;
+            ctx.save();
+            sim.bands.forEach((band, i) => {
+                const q = QUANTILES[i];
+                const isMedian = q === 0.5;
+                const isTail = q === 0.05 || q === 0.95;
+                ctx.setLineDash(isTail ? [7, 7] : []);
+                ctx.strokeStyle = `rgba(20, 20, 19, ${strength * (isMedian ? 0.85 : isTail ? 0.6 : 0.4)})`;
+                ctx.lineWidth = isMedian ? 1.6 : 1;
+                ctx.beginPath();
+                ctx.moveTo(xAt(0), yAt(band[0]));
+                for (let t = 1; t <= sim.T; t++) ctx.lineTo(xAt(t), yAt(band[t]));
+                ctx.stroke();
+            });
+            // The single point every future shares.
+            ctx.setLineDash([]);
+            ctx.fillStyle = `rgba(20, 20, 19, ${0.35 + 0.5 * strength})`;
+            ctx.beginPath();
+            ctx.arc(xAt(0), yAt(0), 3.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function draw() {
+            if (!sim) return;
+            const batch = Math.max(24, Math.ceil(sim.P / 40));
+            blendMode(MULTIPLY);
+            for (let k = 0; k < batch && drawIndex < sim.P; k++, drawIndex++) drawFuture(sim.order[drawIndex]);
+            blendMode(BLEND);
+            if (drawIndex >= sim.P) {
+                drawContours();
+                noLoop();
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // UI CONTROL HANDLERS - CUSTOMIZE FOR YOUR PARAMETERS
+        // ═══════════════════════════════════════════════════════════════════════
+
+        function scheduleRebuild() {
+            clearTimeout(rebuildTimer);
+            rebuildTimer = setTimeout(initializeSystem, 120);
+        }
+
+        function updateParam(paramName, value) {
+            params[paramName] = Number(value);
+            document.getElementById(`${paramName}-value`).textContent = value;
+            scheduleRebuild();
+        }
+
+        function updateColor(colorId, value) {
+            const index = { color1: 0, color2: 1, color3: 2 }[colorId];
+            params.colorPalette[index] = value;
+            document.getElementById(`${colorId}-value`).textContent = value;
+            scheduleRebuild();
+        }
+
+        function downloadPng() {
+            saveCanvas(`probability-tides-seed-${params.seed}`, 'png');
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // SEED CONTROL FUNCTIONS - ALWAYS KEEP THESE
+        // ═══════════════════════════════════════════════════════════════════════
+
+        function updateSeedDisplay() {
+            document.getElementById('seed-input').value = params.seed;
+        }
+
+        function updateSeed() {
+            let input = document.getElementById('seed-input');
+            let newSeed = parseInt(input.value);
+            if (newSeed && newSeed > 0) {
+                params.seed = newSeed;
+                initializeSystem();
+            } else {
+                // Reset to current seed if invalid
+                updateSeedDisplay();
+            }
+        }
+
+        function previousSeed() {
+            params.seed = Math.max(1, params.seed - 1);
+            updateSeedDisplay();
+            initializeSystem();
+        }
+
+        function nextSeed() {
+            params.seed = params.seed + 1;
+            updateSeedDisplay();
+            initializeSystem();
+        }
+
+        function randomSeedAndUpdate() {
+            params.seed = Math.floor(Math.random() * 999999) + 1;
+            updateSeedDisplay();
+            initializeSystem();
+        }
+
+        function resetParameters() {
+            params = {...defaultParams, colorPalette: [...defaultParams.colorPalette]};
+
+            // Update UI elements
+            for (const key of ['paths', 'steps', 'volatility', 'coupling', 'tails', 'current', 'ink', 'contours']) {
+                document.getElementById(key).value = params[key];
+                document.getElementById(`${key}-value`).textContent = params[key];
+            }
+
+            // Reset colors
+            ['color1', 'color2', 'color3'].forEach((id, index) => {
+                document.getElementById(id).value = params.colorPalette[index];
+                document.getElementById(`${id}-value`).textContent = params.colorPalette[index];
+            });
+
+            updateSeedDisplay();
+            initializeSystem();
+        }
+
+        // Initialize UI on load
+        window.addEventListener('load', function() {
+            updateSeedDisplay();
+        });
+    </script>
+</body>
+</html>

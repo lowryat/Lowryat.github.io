@@ -19,6 +19,7 @@ bot never fails just because notifications aren't set up.
 """
 from __future__ import annotations
 
+import base64
 import os
 
 import requests
@@ -65,6 +66,15 @@ def format_report_message(report: dict) -> tuple[str, str]:
     return title, "\n".join(lines)
 
 
+def _header_value(value: str) -> str:
+    """HTTP headers are sent as latin-1, so a title with an emoji (the HALTED
+    alert uses one) raised UnicodeEncodeError and the notification was lost.
+    Non-ASCII values are sent as an RFC 2047 encoded word, which ntfy decodes."""
+    if value.isascii():
+        return value
+    return "=?UTF-8?B?" + base64.b64encode(value.encode("utf-8")).decode("ascii") + "?="
+
+
 def send_ntfy(topic: str, title: str, body: str,
               server: str = "https://ntfy.sh", post=None) -> bool:
     # Resolve at call time (not as a default arg) so tests can monkeypatch
@@ -73,7 +83,7 @@ def send_ntfy(topic: str, title: str, body: str,
     resp = post(
         f"{server.rstrip('/')}/{topic}",
         data=body.encode("utf-8"),
-        headers={"Title": title, "Tags": "chart_with_upwards_trend"},
+        headers={"Title": _header_value(title), "Tags": "chart_with_upwards_trend"},
         timeout=10,
     )
     return 200 <= resp.status_code < 300

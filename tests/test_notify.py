@@ -121,3 +121,52 @@ def test_send_ntfy_posts_to_topic():
     url, kwargs = calls[0]
     assert url == "https://ntfy.sh/my-topic"
     assert kwargs["headers"]["Title"] == "Title"
+
+
+def test_send_ntfy_encodes_non_ascii_titles_instead_of_crashing():
+    import base64
+    captured = {}
+
+    def fake_post(url, **kwargs):
+        captured.update(kwargs)
+        class R:
+            status_code = 200
+        return R()
+
+    title = "\u26d4 HALTED \u2014 daily loss limit"
+    assert send_ntfy("t", title, "body", post=fake_post)
+    header = captured["headers"]["Title"]
+    header.encode("latin-1")  # must be sendable as an HTTP header
+    assert header.startswith("=?UTF-8?B?") and header.endswith("?=")
+    assert base64.b64decode(header[10:-2]).decode("utf-8") == title
+
+
+def test_send_ntfy_halted_report_reaches_a_real_http_server():
+    import http.server
+    import threading
+
+    received = {}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            received["title"] = self.headers.get("Title")
+            length = int(self.headers.get("Content-Length", 0))
+            received["body"] = self.rfile.read(length).decode("utf-8")
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        title, body = format_report_message({"date": "2026-09-20", "equity": 9500, "dd_day": 0.035,
+                                             "dd_week": 0.035, "halted_today": True, "actions": []})
+        import requests
+        assert send_ntfy("t", title, body, server=f"http://127.0.0.1:{server.server_port}", post=requests.post)
+        assert received["title"].startswith("=?UTF-8?B?") or received["title"].isascii()
+        assert received["body"] == body
+    finally:
+        server.shutdown()

@@ -109,6 +109,8 @@ chmod +x "$BACKUP/restore.sh"
 if ! grep -qx '.liq-backup/' .gitignore 2>/dev/null; then
   if [[ -f .gitignore ]]; then
     mkdir -p "$BACKUP/files" && cp -p .gitignore "$BACKUP/files/.gitignore"
+    # Without a final newline the entry would be glued onto the last rule.
+    [[ -s .gitignore && -n "$(tail -c1 .gitignore)" ]] && echo >> .gitignore
   else
     echo ".gitignore" >> "$BACKUP/added-files.txt"
   fi

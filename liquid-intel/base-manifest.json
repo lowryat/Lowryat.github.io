@@ -7,7 +7,7 @@
     "client/src/pages/Dashboard.tsx": "3b5363ab7ec0e36d952580148b0075856f5c9233f0fb45cba8816e3c28fc05c8",
     "server/alerts.ts": "83988b406c119f1bb373821298a6fa31dc17e7159009e9be4005a419ad312ed5",
     "server/analysis-alerts.test.ts": "9f86b48e1126c35e1cabce3218b865a395cdf1d6309ca56b2504d610d4fadf94",
-    "server/analysis-alerts.ts": "f4da632e402883a636f28eff1e87118b7188ac43c660f202a7edd7bb2aed1b0f",
+    "server/analysis-alerts.ts": "6358c7713a52b71d82d3507cc2b7168bb9f1e84cc3a6c7c864d26e24d6246aaf",
     "server/coinbase.ts": "398886f59adec639c60c7b7cf81441c7b71e2b0317bf138d66a2b63bea369359",
     "server/coinglass.ts": "d5c38466f6c760b4f64eb052b740c3abd243f0c4a89ecf7f46badaae1b055f89",
     "server/history.ts": "360730dbd2e1bedea8f2c2697b56e78b254caf360e26afcf48f93f91c6ebaa98",

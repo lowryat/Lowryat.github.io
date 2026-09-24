@@ -153,3 +153,71 @@ def notify_report(report: dict, env: dict | None = None) -> list[str]:
         print(f"[notify] sent via {', '.join(sent)}")
 
     return sent
+
+
+def notify_failure(summary: str, env: dict | None = None) -> list[str]:
+    """Alert that the daily run FAILED.
+
+    This exists because a crash happens before `notify_report` is ever
+    reached, so a broken run is otherwise completely silent -- the bot can
+    stop trading for weeks without the operator noticing. Failure alerts
+    ignore NOTIFY_ONLY_ON_ACTION: a failure is always worth a ping.
+    """
+    env = env if env is not None else dict(os.environ)
+
+    def cfg(key: str, default: str = "") -> str:
+        return (env.get(key) or "").strip() or default
+
+    title = "Tradebot FAILED — not trading"
+    body = (
+        f"{summary}\n\n"
+        "The bot did NOT trade. It will keep failing every day until fixed.\n"
+        "Check: Actions > tradingbot-daily > latest run."
+    )
+
+    sent: list[str] = []
+    topic = cfg("NTFY_TOPIC")
+    if topic:
+        server = cfg("NTFY_SERVER", "https://ntfy.sh")
+        try:
+            resp = requests.post(
+                f"{server.rstrip('/')}/{topic}",
+                data=body.encode("utf-8"),
+                headers={"Title": title, "Tags": "rotating_light", "Priority": "high"},
+                timeout=10,
+            )
+            if 200 <= resp.status_code < 300:
+                sent.append("ntfy")
+        except Exception as exc:
+            print(f"[notify] failure alert could not be sent: {type(exc).__name__}: {exc}")
+
+    sid, token = cfg("TWILIO_ACCOUNT_SID"), cfg("TWILIO_AUTH_TOKEN")
+    from_num, to_num = cfg("TWILIO_FROM"), cfg("TWILIO_TO")
+    if sid and token and from_num and to_num:
+        try:
+            if send_twilio_sms(sid, token, from_num, to_num, f"{title}\n{body}"):
+                sent.append("sms")
+        except Exception as exc:
+            print(f"[notify] failure SMS could not be sent: {type(exc).__name__}: {exc}")
+
+    print(f"[notify] failure alert sent via {', '.join(sent)}" if sent
+          else "[notify] failure alert could not be delivered (no channel configured)")
+    return sent
+
+
+def main(argv=None) -> int:
+    """CLI so CI can raise an alert: python -m tradingbot.notify --failure "..." """
+    import argparse
+    p = argparse.ArgumentParser(description="Send a tradingbot notification.")
+    p.add_argument("--failure", metavar="SUMMARY",
+                   help="send a high-priority failure alert with this summary")
+    args = p.parse_args(argv)
+    if args.failure:
+        notify_failure(args.failure)
+        return 0
+    p.print_help()
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -22,6 +22,24 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Verify broker credentials
+        env:
+          ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
+          ALPACA_API_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
+          ROBINHOOD_API_KEY: ${{ secrets.ROBINHOOD_API_KEY }}
+          ROBINHOOD_PRIVATE_KEY: ${{ secrets.ROBINHOOD_PRIVATE_KEY }}
+          ROBINHOOD_LIVE_ACK: ${{ secrets.ROBINHOOD_LIVE_ACK }}
+        run: |
+          if [ "${{ vars.TRADING_ENABLED }}" = "true" ]; then
+            if [ "${{ vars.TRADING_BROKER }}" = "robinhood" ]; then
+              python -m tradingbot.check --broker robinhood
+            else
+              python -m tradingbot.check --broker alpaca-paper
+            fi
+          else
+            python -m tradingbot.check --broker paper-sim
+          fi
+
       # Broker selection (repo settings):
       #   vars.TRADING_ENABLED != 'true'      -> dry run (paper-sim, no network orders)
       #   vars.TRADING_ENABLED == 'true' and
@@ -88,6 +106,22 @@ jobs:
           else
             python -m tradingbot.live --broker "$BROKER"
           fi
+
+      # A crash happens before the run can send its own report, so without
+      # this a broken bot is completely silent -- it can stop trading for
+      # weeks with no indication. Always alert on failure.
+      - name: Alert on failure
+        if: failure()
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
+          TWILIO_TO: ${{ secrets.TWILIO_TO }}
+        run: |
+          python -m tradingbot.notify --failure \
+            "Daily run failed on $(date -u +%F). Broker=${{ vars.TRADING_BROKER || 'alpaca-paper' }}, enabled=${{ vars.TRADING_ENABLED || 'false' }}."
 
       # always(): if a bot submitted orders and then something later failed,
       # its state file on disk reflects real fills. Not committing it would

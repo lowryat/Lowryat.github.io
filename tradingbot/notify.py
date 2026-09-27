@@ -5,7 +5,7 @@ either channel with repo secrets and no code changes:
 
 Push (free, easiest — install the ntfy app on your phone and subscribe to
 your topic):
-    NTFY_TOPIC   e.g. "lowryat-tradebot-x7q2"  (pick something unguessable)
+    NTFY_TOPIC   a long random name only you know (topics are public)
     NTFY_SERVER  optional, default https://ntfy.sh
 
 SMS (requires a Twilio account):

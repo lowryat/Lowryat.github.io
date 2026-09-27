@@ -60,7 +60,9 @@ a separate read-only key is safer.
 
 Same plumbing as the trading bot. If `NTFY_TOPIC` is already a repo secret
 you are done. Otherwise: install the **ntfy** app, subscribe to an
-unguessable topic name, and add it as the `NTFY_TOPIC` secret.
+unguessable topic name, and add it as the `NTFY_TOPIC` secret. Generate the
+name rather than inventing it (`echo "alerts-$(openssl rand -hex 12)"`), and
+subscribe to that name, not to the words `NTFY_TOPIC`.
 
 Optional repo **variables** (not secrets):
 

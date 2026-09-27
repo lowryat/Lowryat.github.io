@@ -24,10 +24,12 @@ Easiest option is **ntfy**, a free push service with no signup:
 
 1. Install the **ntfy** app ([iOS](https://apps.apple.com/us/app/ntfy/id1625396347) /
    [Android](https://play.google.com/store/apps/details?id=io.heckel.ntfy)).
-2. Pick an unguessable topic name, e.g. `lowryat-tradebot-k9x2mq`.
-   Anyone who knows the topic can read your alerts, so don't use
-   something guessable like `lowryat-trades`.
-3. In the app: **+ → Subscribe to topic →** enter that name.
+2. Make your own random topic name. Don't copy one from any guide:
+   ntfy topics are public, so anyone who knows or guesses the name can read
+   your alerts and send you fake ones. On a Mac, run
+   `echo "tradebot-$(openssl rand -hex 12)"` in Terminal and use the output.
+3. In the app: **+ → Subscribe to topic →** enter that exact name. Subscribe
+   to the name itself, not to the words `NTFY_TOPIC`.
 4. In GitHub: **Settings → Secrets and variables → Actions → New repository
    secret**, name `NTFY_TOPIC`, value = your topic name.
 

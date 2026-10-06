@@ -40,6 +40,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from dataclasses import asdict
 from datetime import datetime, timezone
 
@@ -257,6 +258,16 @@ def main(argv=None) -> int:
     first = next(iter(data.values()))
     print(f"[shadow] {source}: {len(first)} bars, "
           f"{str(first.index[0])[:10]} -> {str(first.index[-1])[:10]}")
+
+    # The slowest indicator in the default set is the EMA(100) regime filter.
+    # With less history than that, every strategy sits flat and the dashboard
+    # would show a confident-looking row of zeros that means nothing.
+    MIN_BARS = 120
+    if len(first) < MIN_BARS:
+        print(f"[shadow] ERROR: only {len(first)} bars; need at least {MIN_BARS} "
+              f"for the indicators to warm up. Refusing to write a misleading report.",
+              file=sys.stderr)
+        return 1
 
     results = [run_variant(v, data, args.allocation, args.cost_bps) for v in variants]
     for r in results:

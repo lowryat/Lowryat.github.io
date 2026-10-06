@@ -178,3 +178,18 @@ def test_shipped_variants_file_is_valid_and_has_no_dead_overrides():
         # stops a silently-inert example shipping again.
         assert "atr_trail_mult" not in (v.get("risk") or {}), \
             f"{v['label']}: atr_trail_mult in risk is a no-op, put it in params"
+
+
+def test_too_little_history_is_refused(monkeypatch, tmp_path, capsys):
+    """One bar in means no indicator can warm up; every strategy sits flat and
+    the dashboard would show a meaningless row of zeros. Fail loudly instead.
+    This is the shape of the bug that returned 1 bar from Alpaca."""
+    import tradingbot.shadow as sh
+    thin, _ = generate_multi_regime_ohlcv(["BTC", "ETH"], days=200, seed=3)
+    thin = {k: df.iloc[-5:] for k, df in thin.items()}
+    monkeypatch.setattr(sh, "get_data", lambda *a, **k: (thin, "alpaca-crypto (live)"))
+
+    rc = sh.main(["--out", str(tmp_path)])
+    assert rc == 1
+    assert "Refusing to write a misleading report" in capsys.readouterr().err
+    assert not (tmp_path / "latest.json").exists()

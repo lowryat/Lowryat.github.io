@@ -48,8 +48,9 @@ jobs:
 
       - name: Run shadow trading on live market data
         run: |
-          ARGS=(--lookback-days "${{ github.event.inputs.lookback_days || '250' }}"
-                --out "${{ github.event.inputs.out || 'reports/shadow' }}")
+          OUT="${{ github.event.inputs.out || 'reports/shadow' }}"
+          echo "SHADOW_OUT=$OUT" >> "$GITHUB_ENV"
+          ARGS=(--lookback-days "${{ github.event.inputs.lookback_days || '250' }}" --out "$OUT")
           if [ -n "${{ github.event.inputs.variants }}" ]; then
             ARGS+=(--variants "${{ github.event.inputs.variants }}")
           fi
@@ -59,7 +60,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add reports/shadow reports/shadow_experiments 2>/dev/null || true
+          # Stage whatever directory this run actually wrote, not a fixed list.
+          git add "${SHADOW_OUT:-reports/shadow}"
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else

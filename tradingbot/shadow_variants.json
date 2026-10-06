@@ -1,0 +1,84 @@
+{
+  "_comment": [
+    "Variants tracked by the shadow dashboard. Each entry is one bot config",
+    "evaluated independently against the same real market data.",
+    "",
+    "TO TEST A TWEAK: copy a block, give it a distinct label, change the",
+    "params, then run:",
+    "    python -m tradingbot.shadow --variants tradingbot/shadow_variants.json",
+    "",
+    "Because every run replays the full history, a new variant gets the whole",
+    "back-history immediately -- you do not wait months to compare it.",
+    "",
+    "To make the daily job use this file, add --variants to the shadow step in",
+    ".github/workflows/tradingbot-shadow.yml. Without it the four defaults run.",
+    "",
+    "FIELDS",
+    "  label               unique name shown on the dashboard",
+    "  strategy            ema_atr_trend | donchian_breakout | momentum_regime |",
+    "                      dual_momentum_adaptive",
+    "  risk_per_trade_pct  fraction of equity risked per trade (0.02 = 2%)",
+    "  params              strategy-specific overrides (see the strategy class)",
+    "  risk                RiskConfig overrides, e.g. atr_trail_mult",
+    "",
+    "A reminder from Rep 7: a change that only wins on one sample is noise.",
+    "Judge a variant on whether it holds up, not on a single good number."
+  ],
+
+  "variants": [
+    {
+      "label": "ema_atr_trend",
+      "strategy": "ema_atr_trend",
+      "risk_per_trade_pct": 0.02,
+      "params": {}
+    },
+    {
+      "label": "donchian_breakout",
+      "strategy": "donchian_breakout",
+      "risk_per_trade_pct": 0.02,
+      "params": {}
+    },
+    {
+      "label": "momentum_regime",
+      "strategy": "momentum_regime",
+      "risk_per_trade_pct": 0.02,
+      "params": {}
+    },
+    {
+      "label": "dual_momentum_adaptive",
+      "strategy": "dual_momentum_adaptive",
+      "risk_per_trade_pct": 0.02,
+      "params": {}
+    },
+
+    {
+      "_example": "Half risk. Rep 4 found donchian breaches the 5% weekly limit at 2% risk, so this is the safer way to run it. Delete the leading underscore in the keys below to activate.",
+      "label": "donchian_1pct",
+      "strategy": "donchian_breakout",
+      "risk_per_trade_pct": 0.01,
+      "params": {}
+    },
+    {
+      "_example": "Slower EMA pair — fewer whipsaws, later entries.",
+      "label": "ema_slow_16_60",
+      "strategy": "ema_atr_trend",
+      "risk_per_trade_pct": 0.02,
+      "params": { "fast": 16, "slow": 60 }
+    },
+    {
+      "_example": "Tighter trailing stop: banks winners sooner, gives back less at the top, but exits trends earlier. NOTE atr_trail_mult belongs in params (the strategy owns the trail), not in risk.",
+      "label": "ema_tight_trail",
+      "strategy": "ema_atr_trend",
+      "risk_per_trade_pct": 0.02,
+      "params": { "atr_trail_mult": 2.0 }
+    },
+    {
+      "_example": "Concentrate into fewer, larger positions. max_positions IS a RiskConfig field, so it goes in the risk block.",
+      "label": "ema_max2_positions",
+      "strategy": "ema_atr_trend",
+      "risk_per_trade_pct": 0.02,
+      "params": {},
+      "risk": { "max_positions": 2 }
+    }
+  ]
+}

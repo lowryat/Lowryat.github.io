@@ -1,0 +1,83 @@
+/* Shadow dashboard — additions on top of ../portfolio/styles.css */
+
+.verdict {
+  display: flex; gap: 14px; align-items: flex-start;
+  padding: 16px; border-radius: var(--radius-card);
+  background: var(--bg-elevated); box-shadow: var(--shadow); margin-bottom: 18px;
+  border-left: 4px solid var(--gray);
+}
+.verdict.go     { border-left-color: var(--green); }
+.verdict.wait   { border-left-color: var(--orange); }
+.verdict.stop   { border-left-color: var(--red); }
+.verdict .vicon { font-size: 22px; line-height: 1; flex: 0 0 auto; margin-top: 1px; }
+.verdict .vbody { flex: 1 1 auto; min-width: 0; }
+.verdict .vtitle { font-weight: 650; font-size: 15px; margin-bottom: 3px; }
+.verdict .vtext { font-size: 13.5px; line-height: 1.45; color: var(--label-2); }
+
+.kpi-grid {
+  display: grid; gap: 10px; margin-bottom: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.kpi-card {
+  background: var(--bg-elevated); border-radius: var(--radius-card);
+  padding: 13px 15px; box-shadow: var(--shadow);
+}
+.kpi-card .k-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .5px;
+  color: var(--label-2); margin-bottom: 5px;
+}
+.kpi-card .k-value {
+  font-size: 23px; font-weight: 640; letter-spacing: -.3px;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-card .k-sub { font-size: 12px; color: var(--label-2); margin-top: 3px; }
+.pos { color: var(--gain); }
+.neg { color: var(--loss); }
+
+/* Drawdown gauges against the hard limits */
+.gauge { margin-bottom: 11px; }
+.gauge-top {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 13px; margin-bottom: 5px;
+}
+.gauge-top .g-val { font-variant-numeric: tabular-nums; font-weight: 600; }
+.gauge-track {
+  height: 8px; border-radius: 999px; background: var(--fill-3);
+  position: relative; overflow: hidden;
+}
+.gauge-fill { height: 100%; border-radius: 999px; transition: width .3s ease; }
+.gauge-limit {
+  position: absolute; top: -2px; bottom: -2px; width: 2px;
+  background: var(--label); opacity: .55;
+}
+.gauge-note { font-size: 11.5px; color: var(--label-2); margin-top: 3px; }
+
+table.shadow-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.shadow-tbl th {
+  text-align: right; font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .4px; color: var(--label-2); padding: 7px 9px;
+  border-bottom: 1px solid var(--separator); white-space: nowrap;
+}
+table.shadow-tbl th:first-child, table.shadow-tbl td:first-child { text-align: left; }
+table.shadow-tbl td {
+  text-align: right; padding: 8px 9px; font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--separator); white-space: nowrap;
+}
+table.shadow-tbl tbody tr:last-child td { border-bottom: none; }
+table.shadow-tbl tr.highlight td { background: var(--fill-3); font-weight: 600; }
+.tbl-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+.legend-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 9px; font-size: 12px; }
+.legend-row .li { display: flex; align-items: center; gap: 5px; color: var(--label-2); }
+.legend-row .sw { width: 11px; height: 3px; border-radius: 2px; }
+
+.badge {
+  display: inline-block; padding: 1px 7px; border-radius: 999px;
+  font-size: 11px; font-weight: 600;
+}
+.badge.ok   { background: rgba(52,199,89,.16);  color: var(--green); }
+.badge.warn { background: rgba(255,149,0,.16);  color: var(--orange); }
+.badge.bad  { background: rgba(255,59,48,.16);  color: var(--red); }
+
+.chart-svg { width: 100%; height: auto; display: block; }
+.empty-note { color: var(--label-2); font-size: 13.5px; padding: 6px 0 2px; }

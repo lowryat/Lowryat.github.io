@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Shadow">
+<title>Shadow Trading · Live-market bot evaluation</title>
+<link rel="stylesheet" href="../portfolio/styles.css">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%235856D6'/%3E%3Cpath d='M12 44l12-14 9 9 19-21' fill='none' stroke='%23fff' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+</head>
+<body>
+<nav class="nav" id="nav" aria-label="Shadow trading">
+  <div class="nav-inner">
+    <div class="nav-side"><span class="pill" style="background:transparent;color:var(--label-2);padding-left:0">No money at risk</span></div>
+    <div class="nav-title">Shadow</div>
+    <div class="nav-side right">
+      <button class="icon-btn" id="themeBtn" aria-label="Toggle appearance"></button>
+    </div>
+  </div>
+</nav>
+
+<main class="page" id="page">
+  <h1 class="large-title">Shadow trading</h1>
+  <p class="subhead" id="sub">Loading…</p>
+
+  <div id="status"></div>
+
+  <!-- Verdict: the one question this page exists to answer -->
+  <section id="verdict"></section>
+
+  <!-- Headline KPIs -->
+  <section id="kpis"></section>
+
+  <!-- Equity curves -->
+  <section id="equity"></section>
+
+  <!-- Risk vs the hard limits -->
+  <section id="risk"></section>
+
+  <!-- Per-bot leaderboard -->
+  <section id="leaderboard"></section>
+
+  <!-- Currently held -->
+  <section id="positions"></section>
+
+  <!-- Closed trades -->
+  <section id="trades"></section>
+
+  <footer class="footer">
+    <p>Strategies run against real BTC/ETH/SOL/AVAX daily bars with simulated
+    execution. <strong>No broker, no orders, no money at risk.</strong> Returns are
+    shown net of estimated fees and slippage.</p>
+    <p class="caption-2">Past and simulated performance does not predict future
+    results. Crypto carries substantial risk of loss.</p>
+  </footer>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

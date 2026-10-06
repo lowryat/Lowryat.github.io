@@ -1,0 +1,74 @@
+name: tradingbot-shadow
+
+# Shadow trading: run every strategy against real market data with simulated
+# execution. Needs NO broker credentials -- Alpaca's crypto market-data API is
+# keyless -- so this keeps producing evidence even while the trading
+# credentials are broken. Nothing here can place an order or touch money.
+
+on:
+  schedule:
+    # 00:30 UTC — far enough past the 00:00 daily-bar close to get a complete
+    # previous day, and offset from the other jobs in this repo.
+    - cron: "30 0 * * *"
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: "Days of market history to replay"
+        required: false
+        default: "250"
+
+permissions:
+  contents: write
+
+concurrency:
+  # Two overlapping runs would race on the same commit.
+  group: tradingbot-shadow
+  cancel-in-progress: false
+
+jobs:
+  shadow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run shadow trading on live market data
+        run: |
+          python -m tradingbot.shadow \
+            --lookback-days "${{ github.event.inputs.lookback_days || '250' }}" \
+            --out reports/shadow
+
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/shadow/
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "shadow: live-market evaluation $(date -u +%F)"
+            # The other daily jobs push to main too; rebase rather than fail.
+            for i in 1 2 3; do
+              git pull --rebase --autostash origin main && git push && break
+              echo "push attempt $i failed, retrying"; sleep $((i * 5))
+            done
+          fi
+
+      - name: Alert on failure
+        if: failure()
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
+          TWILIO_TO: ${{ secrets.TWILIO_TO }}
+        run: |
+          python -m tradingbot.notify --failure \
+            "Shadow evaluation failed on $(date -u +%F) — the dashboard will go stale."

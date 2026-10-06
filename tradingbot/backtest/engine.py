@@ -30,6 +30,9 @@ class BacktestResult:
     equity_curve: pd.DataFrame
     trades: list[Trade] = field(default_factory=list)
     metrics: dict = field(default_factory=dict)
+    # Positions still open on the final bar. Backtests usually ignore these,
+    # but shadow/live reporting needs to show what the bot is holding now.
+    open_positions: dict = field(default_factory=dict)
 
 
 class Backtester:
@@ -144,4 +147,9 @@ class Backtester:
 
         equity_curve = pd.DataFrame(records).set_index("date")
         metrics = compute_metrics(equity_curve, trades)
-        return BacktestResult(equity_curve=equity_curve, trades=trades, metrics=metrics)
+        return BacktestResult(
+            equity_curve=equity_curve,
+            trades=trades,
+            metrics=metrics,
+            open_positions=dict(rm.positions),
+        )

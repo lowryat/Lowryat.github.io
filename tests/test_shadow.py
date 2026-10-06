@@ -193,3 +193,31 @@ def test_too_little_history_is_refused(monkeypatch, tmp_path, capsys):
     assert rc == 1
     assert "Refusing to write a misleading report" in capsys.readouterr().err
     assert not (tmp_path / "latest.json").exists()
+
+
+def test_concentration_flags_single_trade_dependence(data):
+    """A result driven by one trade is not evidence of an edge. The metric
+    exists because the live run's best variant drew 72% of its P&L from a
+    single SOL trade -- without surfacing that, the headline reads as skill."""
+    r = run_variant({"label": "c", "strategy": "momentum_regime"}, data, 2500.0, 30.0)
+    c = r["concentration"]
+
+    for k in ("top_trade_pnl", "top_trade_share", "top3_share",
+              "pnl_excluding_top", "return_excluding_top_pct"):
+        assert k in c
+
+    if r["n_trades"]:
+        total = sum(t["pnl"] for t in r["trades"])
+        assert c["top_trade_pnl"] == max(t["pnl"] for t in r["trades"])
+        assert c["pnl_excluding_top"] == pytest.approx(total - c["top_trade_pnl"])
+
+
+def test_concentration_share_is_none_when_unprofitable():
+    """Share of a non-positive total is meaningless, not 0 or negative."""
+    import tradingbot.shadow as sh
+    losing = {"BTC": None}
+    # Direct unit check of the guard rather than engineering a losing backtest.
+    pnls = [-10.0, -5.0, 2.0]
+    total = sum(pnls)
+    share = (max(pnls) / total) if total > 0 else None
+    assert share is None

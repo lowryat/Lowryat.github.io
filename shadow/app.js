@@ -62,6 +62,15 @@ function computeVerdict(d) {
   if (worstWeekly > weeklyLimit) blockers.push(`worst week −${worstWeekly.toFixed(2)}% breached the ${weeklyLimit}% limit`);
   if (net <= 0) blockers.push(`ensemble is ${fmtPct(net)} net of costs`);
 
+  // A result carried by one trade is not evidence, however large the number.
+  const worst = (d.variants || []).reduce((acc, x) => {
+    const s = x.concentration?.top_trade_share;
+    return s != null && s > (acc?.share ?? 0) ? { label: x.label, share: s } : acc;
+  }, null);
+  if (worst && worst.share > 0.5) {
+    blockers.push(`${worst.label} draws ${(worst.share * 100).toFixed(0)}% of its P&L from a single trade — the sample cannot separate skill from luck`);
+  }
+
   if (blockers.length === 0) {
     return {
       cls: 'go', icon: '✓', title: 'Evidence supports a small live paper test',
@@ -236,12 +245,13 @@ function render(d) {
       el('div', { class: 'tbl-scroll' },
         el('table', { class: 'shadow-tbl' },
           el('thead', {}, el('tr', {},
-            ['Bot', 'Net', 'Gross', 'Trades', 'Win %', 'Avg R', 'Profit factor', 'Worst wk', 'CB'].map((h) => el('th', {}, h)))),
+            ['Bot', 'Net', 'Ex-best', 'Trades', 'Win %', 'Avg R', 'Profit factor', 'Worst wk', 'CB'].map((h) => el('th', {}, h)))),
           el('tbody', {},
             rows.map((x) => el('tr', {},
               el('td', {}, x.label),
               el('td', { class: signClass(x.net_return_pct) }, fmtPct(x.net_return_pct)),
-              el('td', { class: 'muted-note' }, fmtPct(x.gross_return_pct)),
+              el('td', { class: signClass(x.concentration?.return_excluding_top_pct) },
+                 fmtPct(x.concentration?.return_excluding_top_pct)),
               el('td', {}, String(x.n_trades)),
               el('td', {}, x.win_rate == null ? '—' : x.win_rate.toFixed(0) + '%'),
               el('td', { class: signClass(x.avg_r) }, fmtNum(x.avg_r)),
@@ -259,7 +269,7 @@ function render(d) {
               }, `−${((ens.worst_weekly || 0) * 100).toFixed(2)}%`)),
               el('td', {}, '—')) : null))),
       el('p', { class: 'caption-2', style: 'margin-top:9px' },
-        'Net is after estimated fees and slippage. Profit factor is gross wins ÷ gross losses; above 1.0 is profitable, above 1.5 is healthy.')));
+        'Net is after estimated fees and slippage. Ex-best is the return with the single most profitable trade removed — when it is far below Net, the headline rests on one trade rather than on a repeatable edge. Profit factor is gross wins ÷ gross losses; above 1.0 is profitable, above 1.5 is healthy.')));
 
   // Open positions
   const open = variants.flatMap((x) => (x.open_positions || []).map((p) => ({ ...p, bot: x.label })));

@@ -141,6 +141,23 @@ def run_variant(variant: dict, data: dict[str, pd.DataFrame],
 
     dd = _drawdown_series(eq)
 
+    # Concentration: how much of the result rests on the single best trade.
+    # Trend-following is expected to earn from a few large winners, but when
+    # one trade is most of the P&L the headline return says more about that
+    # trade than about the strategy, and the sample cannot support choosing
+    # between variants. Surfacing it stops the number being read as skill.
+    pnls = [t.pnl for t in trades]
+    total_pnl = sum(pnls)
+    best = max(pnls) if pnls else 0.0
+    top3 = sum(sorted(pnls)[-3:]) if pnls else 0.0
+    concentration = {
+        "top_trade_pnl": best,
+        "top_trade_share": (best / total_pnl) if total_pnl > 0 else None,
+        "top3_share": (top3 / total_pnl) if total_pnl > 0 else None,
+        "pnl_excluding_top": total_pnl - best,
+        "return_excluding_top_pct": ((total_pnl - best) / allocation * 100.0) if allocation else None,
+    }
+
     # Open positions as of the final bar, with live risk context.
     last_close = {s: float(df["close"].iloc[-1]) for s, df in data.items()}
     open_positions = []
@@ -184,6 +201,7 @@ def run_variant(variant: dict, data: dict[str, pd.DataFrame],
         "profit_factor": (gross_win / gross_loss) if gross_loss > 0 else None,
         "max_consec_loss": m.get("max_consec_loss"),
         "cb_trips": m.get("cb_trips", 0),
+        "concentration": concentration,
         **dd,
         "open_positions": open_positions,
         "equity_curve": [
@@ -282,8 +300,10 @@ def main(argv=None) -> int:
 
     results = [run_variant(v, data, args.allocation, args.cost_bps) for v in variants]
     for r in results:
+        ex = r["concentration"]["return_excluding_top_pct"]
+        conc = f"  (ex-best-trade {ex:+.2f}%)" if r["n_trades"] else ""
         print(f"[shadow]   {r['label']:<24} net {r['net_return_pct']:+6.2f}%  "
-              f"{r['n_trades']:>3} trades  worst-wk DD {r['worst_weekly']*100:4.2f}%")
+              f"{r['n_trades']:>3} trades  worst-wk DD {r['worst_weekly']*100:4.2f}%{conc}")
 
     ensemble = build_ensemble(results, args.allocation)
     if ensemble:

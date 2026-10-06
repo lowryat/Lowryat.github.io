@@ -1,0 +1,24 @@
+{
+  "_comment": [
+    "SAFETY ROUND. Almost every variant in the first experiment breached the",
+    "5% weekly drawdown limit (5.2-6.1%) despite the circuit breaker working.",
+    "On daily bars the breaker can only fire after the damage, so the lever is",
+    "position size and concentration, not the breaker itself.",
+    "Each leader is retested at half risk and at reduced concurrency."
+  ],
+  "variants": [
+    { "label": "momentum_2pct",      "strategy": "momentum_regime",        "risk_per_trade_pct": 0.02, "params": {} },
+    { "label": "momentum_1pct",      "strategy": "momentum_regime",        "risk_per_trade_pct": 0.01, "params": {} },
+    { "label": "momentum_1pct_noeth","strategy": "momentum_regime",        "risk_per_trade_pct": 0.01, "params": {}, "symbols": ["BTC","SOL","AVAX"] },
+    { "label": "momentum_2pct_max2", "strategy": "momentum_regime",        "risk_per_trade_pct": 0.02, "params": {}, "risk": { "max_positions": 2 } },
+
+    { "label": "dual_2pct",          "strategy": "dual_momentum_adaptive", "risk_per_trade_pct": 0.02, "params": {} },
+    { "label": "dual_1pct",          "strategy": "dual_momentum_adaptive", "risk_per_trade_pct": 0.01, "params": {} },
+    { "label": "dual_1pct_noeth",    "strategy": "dual_momentum_adaptive", "risk_per_trade_pct": 0.01, "params": {}, "symbols": ["BTC","SOL","AVAX"] },
+
+    { "label": "emaloose_2pct",      "strategy": "ema_atr_trend", "risk_per_trade_pct": 0.02, "params": { "regime": 50 } },
+    { "label": "emaloose_1pct",      "strategy": "ema_atr_trend", "risk_per_trade_pct": 0.01, "params": { "regime": 50 } },
+
+    { "label": "donchian_1pct",      "strategy": "donchian_breakout",      "risk_per_trade_pct": 0.01, "params": {} }
+  ]
+}

@@ -16,6 +16,14 @@ on:
         description: "Days of market history to replay"
         required: false
         default: "250"
+      variants:
+        description: "Variants file (blank = the 4 defaults)"
+        required: false
+        default: ""
+      out:
+        description: "Output dir — use reports/shadow_experiments to avoid touching the main dashboard"
+        required: false
+        default: "reports/shadow"
 
 permissions:
   contents: write
@@ -40,15 +48,18 @@ jobs:
 
       - name: Run shadow trading on live market data
         run: |
-          python -m tradingbot.shadow \
-            --lookback-days "${{ github.event.inputs.lookback_days || '250' }}" \
-            --out reports/shadow
+          ARGS=(--lookback-days "${{ github.event.inputs.lookback_days || '250' }}"
+                --out "${{ github.event.inputs.out || 'reports/shadow' }}")
+          if [ -n "${{ github.event.inputs.variants }}" ]; then
+            ARGS+=(--variants "${{ github.event.inputs.variants }}")
+          fi
+          python -m tradingbot.shadow "${ARGS[@]}"
 
       - name: Commit results
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add reports/shadow/
+          git add reports/shadow reports/shadow_experiments 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else

@@ -1,0 +1,51 @@
+{
+  "_comment": [
+    "EXPERIMENT SET — each variant isolates ONE change against the same real",
+    "bars, so differences are attributable. Baselines are kept in so every",
+    "comparison is like-for-like.",
+    "",
+    "Hypotheses under test, from the 2026-10-06 live run (250 bars, 77 trades):",
+    "",
+    "  H1  ETH is a drag. It was the only loss-making symbol (-$86 over 14",
+    "      trades) while BTC made +$367. Variants: *_noeth.",
+    "",
+    "  H2  Winners are cut short. Only 4 of 77 trades exceeded +2R, so the",
+    "      asymmetric-payoff thesis is not materialising. Variants: *_trail4,",
+    "      *_trail5 widen the chandelier from 3x ATR.",
+    "",
+    "  H3  ema_atr_trend is too restrictive. 8 trades in 250 days, 6 stopped",
+    "      out, profit factor 0.55. Variants: ema_fast, ema_noregime_proxy.",
+    "",
+    "  H4  dual_momentum's signal exits destroy value: -$205 across 18 signal",
+    "      exits while its stop/CB exits made +$445. Variant: dual_wide_trail",
+    "      leans on the trail instead of the signal.",
+    "",
+    "Run:  python -m tradingbot.shadow --variants tradingbot/shadow_experiments.json",
+    "",
+    "Judge on NET return AND worst-weekly drawdown together. A variant that",
+    "earns more by breaching the 5% weekly limit has not improved anything.",
+    "And per Rep 7: one good number on one sample is noise, not evidence."
+  ],
+
+  "variants": [
+    { "label": "momentum_regime",          "strategy": "momentum_regime",         "risk_per_trade_pct": 0.02, "params": {} },
+    { "label": "dual_momentum_adaptive",   "strategy": "dual_momentum_adaptive",  "risk_per_trade_pct": 0.02, "params": {} },
+    { "label": "donchian_breakout",        "strategy": "donchian_breakout",       "risk_per_trade_pct": 0.02, "params": {} },
+    { "label": "ema_atr_trend",            "strategy": "ema_atr_trend",           "risk_per_trade_pct": 0.02, "params": {} },
+
+    { "label": "momentum_noeth",  "strategy": "momentum_regime",        "risk_per_trade_pct": 0.02, "params": {}, "symbols": ["BTC", "SOL", "AVAX"] },
+    { "label": "dual_noeth",      "strategy": "dual_momentum_adaptive", "risk_per_trade_pct": 0.02, "params": {}, "symbols": ["BTC", "SOL", "AVAX"] },
+    { "label": "donchian_noeth",  "strategy": "donchian_breakout",      "risk_per_trade_pct": 0.02, "params": {}, "symbols": ["BTC", "SOL", "AVAX"] },
+
+    { "label": "momentum_trail4", "strategy": "momentum_regime",        "risk_per_trade_pct": 0.02, "params": { "atr_trail_mult": 4.0 } },
+    { "label": "momentum_trail5", "strategy": "momentum_regime",        "risk_per_trade_pct": 0.02, "params": { "atr_trail_mult": 5.0 } },
+    { "label": "dual_trail5",     "strategy": "dual_momentum_adaptive", "risk_per_trade_pct": 0.02, "params": { "atr_trail_mult": 5.0 } },
+    { "label": "donchian_trail4", "strategy": "donchian_breakout",      "risk_per_trade_pct": 0.02, "params": { "atr_trail_mult": 4.0 } },
+
+    { "label": "ema_fast",        "strategy": "ema_atr_trend", "risk_per_trade_pct": 0.02, "params": { "fast": 8,  "slow": 24, "regime": 50 } },
+    { "label": "ema_loose_regime","strategy": "ema_atr_trend", "risk_per_trade_pct": 0.02, "params": { "regime": 50 } },
+
+    { "label": "momentum_best_guess", "strategy": "momentum_regime", "risk_per_trade_pct": 0.02,
+      "params": { "atr_trail_mult": 4.0 }, "symbols": ["BTC", "SOL", "AVAX"] }
+  ]
+}

@@ -109,6 +109,16 @@ def _drawdown_series(equity: pd.Series) -> dict:
 
 def run_variant(variant: dict, data: dict[str, pd.DataFrame],
                 allocation: float, cost_bps: float) -> dict:
+    # A variant may trade a subset of the universe, so a weak asset can be
+    # excluded and measured against the full set on identical bars.
+    wanted = variant.get("symbols")
+    if wanted:
+        missing = [s for s in wanted if s not in data]
+        if missing:
+            raise ValueError(f"variant {variant['label']!r} wants symbols not in the "
+                             f"feed: {missing}; available: {sorted(data)}")
+        data = {s: df for s, df in data.items() if s in wanted}
+
     risk = RiskConfig(risk_per_trade_pct=variant.get("risk_per_trade_pct", 0.02))
     for field_name, value in (variant.get("risk") or {}).items():
         setattr(risk, field_name, value)
@@ -156,6 +166,7 @@ def run_variant(variant: dict, data: dict[str, pd.DataFrame],
         "strategy": variant["strategy"],
         "risk_per_trade_pct": risk.risk_per_trade_pct,
         "params": variant.get("params") or {},
+        "symbols": sorted(data),
         "allocation": allocation,
         "gross_equity": float(eq.iloc[-1]) if len(eq) else allocation,
         "net_equity": net_equity,

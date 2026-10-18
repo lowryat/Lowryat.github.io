@@ -60,9 +60,12 @@ export function buildRifle() {
   // red dot sight
   add(new THREE.BoxGeometry(0.045, 0.035, 0.075), m.receiver, 0, 0.085, -0.10);
   const tube = add(new THREE.CylinderGeometry(0.026, 0.03, 0.06, 14), m.polymer, 0, 0.125, -0.10, Math.PI / 2);
-  const lens = add(new THREE.CircleGeometry(0.023, 14),
-    new THREE.MeshPhysicalMaterial({ color: 0x0a1216, roughness: 0.05, metalness: 0.4, clearcoat: 1, transparent: true, opacity: 0.85 }),
-    0, 0.125, -0.128);
+  const lensMat = new THREE.MeshPhysicalMaterial({
+    color: 0x0a1216, roughness: 0.05, metalness: 0.4, clearcoat: 1, transparent: true, opacity: 0.85,
+    depthWrite: false, // transparent glass must not write depth or it inconsistently occludes the dot behind it (ADS render glitch)
+  });
+  const lens = add(new THREE.CircleGeometry(0.023, 14), lensMat, 0, 0.125, -0.128);
+  lens.renderOrder = 4;
   const dot = add(new THREE.CircleGeometry(0.0035, 8), m.glassRed, 0, 0.125, -0.127);
   dot.renderOrder = 5;
   // front sling loop / details
@@ -164,13 +167,20 @@ export class WeaponSystem {
     this.dustTex = makeSoftParticle('rgba(190,160,120,0.8)', 'rgba(190,160,120,0)');
     this.particles = [];
 
+    // Free Drive sandbox extras
+    this.infiniteAmmo = false;
+    this.altMode = 'rifle';           // 'rifle' | 'flame' — flame only selectable when infiniteAmmo (Free Drive)
+    this.flameTex = makeSoftParticle('rgba(255,190,70,1)', 'rgba(255,60,10,0)');
+    this.flameParticles = [];
+    this.flameEmitAcc = 0;
+
     this.raycaster = new THREE.Raycaster();
   }
 
   get isAiming() { return this.ads > 0.55; }
 
   tryReload() {
-    if (this.reloading > 0 || this.ammo === this.magSize || this.reserve <= 0) return;
+    if (this.infiniteAmmo || this.reloading > 0 || this.ammo === this.magSize || this.reserve <= 0) return;
     this.reloading = 2.1;
     this.audio.reload();
   }
@@ -178,8 +188,10 @@ export class WeaponSystem {
   // returns hit info or null; targets = enemy hit-meshes; world = shootables
   fire(targets, world, onHit) {
     if (this.reloading > 0 || this.fireTimer > 0) return false;
-    if (this.ammo <= 0) { this.audio.dryFire(); this.fireTimer = 0.18; return false; }
-    this.ammo--;
+    if (!this.infiniteAmmo) {
+      if (this.ammo <= 0) { this.audio.dryFire(); this.fireTimer = 0.18; return false; }
+      this.ammo--;
+    }
     this.fireTimer = 60 / this.RPM;
     this.audio.gunshot();
 
@@ -231,6 +243,49 @@ export class WeaponSystem {
       this._decal(hitPoint, hitNormal, hitObject);
     }
     return true;
+  }
+
+  // Close-range Free Drive alt-weapon: continuous cone damage + flame particles, no ammo.
+  // range/half-angle define a forward-facing 10-yard melee cone from the muzzle.
+  fireFlame(dt, aliveEnemies, damageFn) {
+    const RANGE = 9.144; // 10 yards
+    const HALF_ANGLE_COS = Math.cos(THREE.MathUtils.degToRad(22));
+    const DPS = 70; // damage per second within range
+
+    const origin = new THREE.Vector3();
+    this.muzzleRef.getWorldPosition(origin);
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.getWorldQuaternion(new THREE.Quaternion()));
+
+    for (const e of aliveEnemies) {
+      const p = e.group.position;
+      const toE = new THREE.Vector3(p.x, p.y + 1, p.z).sub(origin);
+      const dist = toE.length();
+      if (dist > RANGE) continue;
+      toE.normalize();
+      if (toE.dot(fwd) < HALF_ANGLE_COS) continue;
+      damageFn(e, p, dt * DPS);
+    }
+
+    // emit flame particles along the cone, a few per frame
+    this.flameEmitAcc += dt * 40;
+    while (this.flameEmitAcc >= 1) {
+      this.flameEmitAcc -= 1;
+      const spread = 0.16;
+      const dir = fwd.clone();
+      dir.x += (Math.random() - 0.5) * spread;
+      dir.y += (Math.random() - 0.5) * spread;
+      dir.z += (Math.random() - 0.5) * spread;
+      dir.normalize();
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: this.flameTex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false,
+        color: Math.random() < 0.5 ? 0xffb040 : 0xff5a1e,
+      }));
+      s.position.copy(origin);
+      s.scale.setScalar(0.14 + Math.random() * 0.12);
+      this.scene.add(s);
+      this.flameParticles.push({ s, vel: dir.multiplyScalar(6 + Math.random() * 3), life: 0.28 + Math.random() * 0.15 });
+    }
+    this.flashTTL = 0.06; // reuse muzzle flash glow for the flame's light flicker
   }
 
   _spawnTracer(from, to) {
@@ -350,6 +405,17 @@ export class WeaponSystem {
       p.vel.y -= 9.8 * dt;
       p.s.position.addScaledVector(p.vel, dt);
       p.s.material.opacity = Math.min(1, p.life * 3);
+    }
+    // flame particles: buoyant, fade out, slight drag
+    for (let i = this.flameParticles.length - 1; i >= 0; i--) {
+      const p = this.flameParticles[i];
+      p.life -= dt;
+      if (p.life <= 0) { this.scene.remove(p.s); this.flameParticles.splice(i, 1); continue; }
+      p.vel.y += 1.6 * dt;
+      p.vel.multiplyScalar(1 - Math.min(1, dt * 1.5));
+      p.s.position.addScaledVector(p.vel, dt);
+      p.s.material.opacity = Math.min(1, p.life * 2.5);
+      p.s.scale.multiplyScalar(1 + dt * 1.2);
     }
   }
 

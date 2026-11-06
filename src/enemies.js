@@ -188,6 +188,7 @@ export class EnemyManager {
   }
 
   aliveCount() { return this.enemies.filter((e) => !e.dead).length; }
+  get alive() { return this.enemies.filter((e) => !e.dead); }
 
   update(dt, playerPos, playerInVehicle, occluders) {
     for (const e of this.enemies) {

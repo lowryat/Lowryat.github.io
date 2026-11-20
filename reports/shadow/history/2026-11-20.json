@@ -1,0 +1,198 @@
+{
+  "generated_at": "2026-11-20T07:38:19+00:00",
+  "data_source": "alpaca-crypto (live)",
+  "symbols": [
+    "BTC",
+    "ETH",
+    "SOL",
+    "AVAX"
+  ],
+  "bars": 250,
+  "period": {
+    "start": "2026-03-16",
+    "end": "2026-11-20"
+  },
+  "allocation_per_variant": 2500.0,
+  "cost_bps": 30.0,
+  "limits": {
+    "daily_dd": 0.03,
+    "weekly_dd": 0.05
+  },
+  "latest_prices": {
+    "BTC": 61592.1435,
+    "ETH": 1741.1215,
+    "SOL": 72.31105,
+    "AVAX": 6.881795
+  },
+  "variants": [
+    {
+      "label": "ema_atr_trend",
+      "strategy": "ema_atr_trend",
+      "risk_per_trade_pct": 0.02,
+      "params": {},
+      "symbols": [
+        "AVAX",
+        "BTC",
+        "ETH",
+        "SOL"
+      ],
+      "allocation": 2500.0,
+      "gross_equity": 2430.1355753342086,
+      "net_equity": 2409.5731560616045,
+      "gross_return_pct": -2.7945769866316548,
+      "net_return_pct": -3.617073757535818,
+      "estimated_costs": 20.562419272604075,
+      "sharpe": -0.494239280290225,
+      "sortino": -0.348315221613985,
+      "n_trades": 7,
+      "n_wins": 2,
+      "n_losses": 5,
+      "win_rate": 28.571428571428573,
+      "avg_r": -0.1493748524493781,
+      "expectancy_r": -0.1493748524493781,
+      "profit_factor": 0.5674486623081476,
+      "max_consec_loss": 3,
+      "cb_trips": 1,
+      "concentration": {
+        "top_trade_pnl": 61.340091083154014,
+        "top_trade_share": null,
+        "top3_share": null,
+        "pnl_excluding_top": -131.20451574894588,
+        "return_excluding_top_pct": -5.248180629957836
+      },
+      "max_drawdown": 0.06513153196443675,
+      "worst_daily": 0.024451526434018933,
+      "worst_weekly": 0.05132940948428802
+    },
+    {
+      "label": "donchian_breakout",
+      "strategy": "donchian_breakout",
+      "risk_per_trade_pct": 0.02,
+      "params": {},
+      "symbols": [
+        "AVAX",
+        "BTC",
+        "ETH",
+        "SOL"
+      ],
+      "allocation": 2500.0,
+      "gross_equity": 2596.4660578386543,
+      "net_equity": 2549.5960529059894,
+      "gross_return_pct": 3.85864231354617,
+      "net_return_pct": 1.9838421162395752,
+      "estimated_costs": 46.87000493266502,
+      "sharpe": 0.42409706861041774,
+      "sortino": 0.4519609193556922,
+      "n_trades": 16,
+      "n_wins": 6,
+      "n_losses": 10,
+      "win_rate": 37.5,
+      "avg_r": 0.1493723361261795,
+      "expectancy_r": 0.1493723361261795,
+      "profit_factor": 1.4789538441909684,
+      "max_consec_loss": 4,
+      "cb_trips": 2,
+      "concentration": {
+        "top_trade_pnl": 100.41259313490164,
+        "top_trade_share": 1.0409111285841923,
+        "top3_share": 2.403150640578954,
+        "pnl_excluding_top": -3.946535296247319,
+        "return_excluding_top_pct": -0.15786141184989275
+      },
+      "max_drawdown": 0.06074797495911753,
+      "worst_daily": 0.03350805246417077,
+      "worst_weekly": 0.05094319180475839
+    },
+    {
+      "label": "momentum_regime",
+      "strategy": "momentum_regime",
+      "risk_per_trade_pct": 0.02,
+      "params": {},
+      "symbols": [
+        "AVAX",
+        "BTC",
+        "ETH",
+        "SOL"
+      ],
+      "allocation": 2500.0,
+      "gross_equity": 2801.6852532104253,
+      "net_equity": 2736.6617883922195,
+      "gross_return_pct": 12.067410128417015,
+      "net_return_pct": 9.466471535688779,
+      "estimated_costs": 65.02346481820568,
+      "sharpe": 1.2991983238957938,
+      "sortino": 1.3369104803147713,
+      "n_trades": 21,
+      "n_wins": 9,
+      "n_losses": 12,
+      "win_rate": 42.857142857142854,
+      "avg_r": 0.31987720545292514,
+      "expectancy_r": 0.31987720545292514,
+      "profit_factor": 3.199917321988925,
+      "max_consec_loss": 6,
+      "cb_trips": 2,
+      "concentration": {
+        "top_trade_pnl": 229.7306119914876,
+        "top_trade_share": 0.7614910226694158,
+        "top3_share": 1.1087312420117756,
+        "pnl_excluding_top": 71.95464121893662,
+        "return_excluding_top_pct": 2.8781856487574644
+      },
+      "max_drawdown": 0.07886933101255672,
+      "worst_daily": 0.030683227672398505,
+      "worst_weekly": 0.05166383210082145
+    },
+    {
+      "label": "dual_momentum_adaptive",
+      "strategy": "dual_momentum_adaptive",
+      "risk_per_trade_pct": 0.02,
+      "params": {},
+      "symbols": [
+        "AVAX",
+        "BTC",
+        "ETH",
+        "SOL"
+      ],
+      "allocation": 2500.0,
+      "gross_equity": 2747.1874267444455,
+      "net_equity": 2665.7135791188966,
+      "gross_return_pct": 9.887497069777819,
+      "net_return_pct": 6.6285431647558655,
+      "estimated_costs": 81.473847625549,
+      "sharpe": 0.9666801759737915,
+      "sortino": 0.9460568366453009,
+      "n_trades": 25,
+      "n_wins": 10,
+      "n_losses": 15,
+      "win_rate": 40.0,
+      "avg_r": 0.28738816805067996,
+      "expectancy_r": 0.28738816805067985,
+      "profit_factor": 1.8237133443701936,
+      "max_consec_loss": 7,
+      "cb_trips": 2,
+      "concentration": {
+        "top_trade_pnl": 152.50061130043147,
+        "top_trade_share": 0.6169432374005617,
+        "top3_share": 1.4685190541809778,
+        "pnl_excluding_top": 94.68681544401255,
+        "return_excluding_top_pct": 3.787472617760502
+      },
+      "max_drawdown": 0.07207731751013725,
+      "worst_daily": 0.03428337355871158,
+      "worst_weekly": 0.03587295345515274
+    }
+  ],
+  "ensemble": {
+    "label": "ENSEMBLE",
+    "allocation": 10000.0,
+    "gross_equity": 10575.474313127734,
+    "net_equity": 10361.54457647871,
+    "gross_return_pct": 5.754743131277337,
+    "net_return_pct": 3.6154457647870912,
+    "estimated_costs": 213.92973664902377,
+    "n_trades": 69,
+    "max_drawdown": 0.0653846157934152,
+    "worst_daily": 0.022113592798731707,
+    "worst_weekly": 0.04738408894193364
+  }
+}
